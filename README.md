@@ -18,12 +18,11 @@ Build the Docker image once:
 ```
 docker build -t base-capstone .
 ```
+#### Take off example
 Run the Docker container:
 ```
 docker run -it  --privileged   -v /tmp/.X11-unix:/tmp/.X11-unix:ro   --env="QT_X11_NO_MITSHM=1" --env="DISPLAY" --name=capstone  --network host   base-capstone 
 ```
-
-#### Take off example
 Open 2 additional windows using `docker exec -it capstone /bin/bash`
 In the first window, run:
 ```
@@ -41,8 +40,24 @@ source install/local_setup.bash
 ros2 run px4_ros_com offboard_control
 ```
 
-
-
-
-git clone https://github.com/PX4/px4_msgs.git
-git clone https://github.com/PX4/px4_ros_com.git
+#### Exercise 2
+Run the container and mount the flight_club source code (Note that I haven't tested this command yet, I used to copy the folder using docker cp so there might be permission issues to fix):
+```
+docker run -it  --privileged  -v /tmp/.X11-unix:/tmp/.X11-unix:ro -v ./flight_club:/src/ros_ws/src/:ro  --env="QT_X11_NO_MITSHM=1" --env="DISPLAY" --name=capstone  --network host   base-capstone 
+```
+Open 2 additional windows using `docker exec -it capstone /bin/bash`. In the first window, run:
+```
+MicroXRCEAgent udp4 -p 8888
+```
+In the second window, run the following command (it might take a while the first time, we recommend commiting your docker container in case you need to stop your container/remove the container):
+```
+make px4_sitl gazebo-classic
+```
+In the last tab:
+```
+source /opt/ros/foxy/setup.bash
+cd ros_ws
+colcon build
+source install/local_setup.bash
+ros2 run flight_club exercise2
+```
