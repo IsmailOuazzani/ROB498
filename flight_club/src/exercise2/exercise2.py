@@ -114,22 +114,17 @@ class OffboardControl(Node):
         self.vehicle_command_publisher.publish(msg)
 
     def timer_callback(self) -> None:
-        """Callback function for the timer."""
-        self.publish_offboard_control_heartbeat_signal()
+      self.publish_offboard_control_heartbeat_signal()
 
-        if self.offboard_setpoint_counter == 10:
-            self.engage_offboard_mode()
-            self.arm()
+      if self.offboard_setpoint_counter == 10:
+          self.engage_offboard_mode()
+          self.arm()
 
-        if self.vehicle_local_position.z > self.takeoff_height and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-            self.publish_position_setpoint(0.0, 0.0, self.takeoff_height)
+      # Always publish the trajectory setpoint (takeoff command)
+      self.publish_position_setpoint(0.0, 0.0, self.takeoff_height)
 
-        elif self.vehicle_local_position.z <= self.takeoff_height:
-            self.land()
-            exit(0)
+      self.offboard_setpoint_counter += 1
 
-        if self.offboard_setpoint_counter < 11:
-            self.offboard_setpoint_counter += 1
 
 
 def main(args=None) -> None:
