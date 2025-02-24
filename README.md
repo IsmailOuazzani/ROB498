@@ -18,7 +18,6 @@ Build the Docker image once:
 ```
 docker build -t base-capstone .
 ```
---user $(id -u):$(id -g)
 Run the Docker container:
 ```
 docker run -it  --privileged   -v /tmp/.X11-unix:/tmp/.X11-unix:ro   --env="QT_X11_NO_MITSHM=1" --env="DISPLAY" --name=capstone  --network host   base-capstone 
