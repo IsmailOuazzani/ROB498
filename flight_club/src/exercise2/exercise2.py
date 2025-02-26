@@ -1,7 +1,3 @@
-Share
-
-
-You said:
 #!/usr/bin/env python3
 
 import rclpy
@@ -51,6 +47,8 @@ class CommNode(Node):
         return response
 
     def land_callback(self, request, response):
+        # TODO: for some reason it takes forever for the drone to land ....
+        # TODO: also would be nice to disarm the drone after it lands ... 
         self.get_logger().info('Land Requested. Drone landing.')
         self.should_fly = False
         self.command_land()

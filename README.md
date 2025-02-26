@@ -19,12 +19,12 @@ Build the Docker image once:
 xhost +local:docker
 docker build -t base-capstone .
 ```
-#### Take off example
+#### Exercise 2
 Run the Docker container:
 ```
 docker compose run --rm rob498 
 ```
-Open 2 additional windows using `docker exec -it capstone /bin/bash`
+Open 3 additional windows using `docker exec -it capstone /bin/bash`
 In the first window, run the following command (it might take a while the first time, we recommend commiting your docker container in case you need to stop your container/remove the container):
 
 ```
@@ -48,24 +48,10 @@ source /src/ros_ws/install/local_setup.bash
 ros2 run flight_club mavros_arm_example.py
 ```
 
-#### Exercise 2
-Run the container and mount the flight_club source code (Note that I haven't tested this command yet, I used to copy the folder using docker cp so there might be permission issues to fix):
-```
-docker run -it  --privileged  -v /tmp/.X11-unix:/tmp/.X11-unix:ro -v ./flight_club:/src/ros_ws/src/:ro  --env="QT_X11_NO_MITSHM=1" --env="DISPLAY" --name=capstone  --network host   base-capstone 
-```
-Open 2 additional windows using `docker exec -it capstone /bin/bash`. In the first window, run:
-```
-MicroXRCEAgent udp4 -p 8888
-```
-In the second window, run the following command (it might take a while the first time, we recommend commiting your docker container in case you need to stop your container/remove the container):
-```
-make px4_sitl gazebo-classic
-```
-In the last tab:
+
+In the fourth tab, you can launch the drone running
 ```
 source /opt/ros/foxy/setup.bash
-cd ros_ws
-colcon build --symlink-install
-source install/local_setup.bash
-ros2 run flight_club exercise2
+ros2 service call /rob498_drone_06/comm/launch std_srvs/srv/Trigger
 ```
+
