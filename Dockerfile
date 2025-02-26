@@ -25,6 +25,16 @@ RUN git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git &&\
     sudo make install && \
     sudo ldconfig /usr/local/lib/
 
+# Install mavros
+RUN sudo apt-get install -y ros-foxy-gazebo-ros2-control \
+    ros-foxy-xacro \
+    ros-foxy-nav2-bringup \
+    ros-foxy-mavros \
+    ros-foxy-mavros-extras \
+    ros-foxy-octomap-server \
+    ros-foxy-rtabmap-ros \
+    ros-foxy-realsense2-camera
+
 # Install example
 SHELL ["/bin/bash", "-c"]
 RUN mkdir ros_ws/src -p &&\
@@ -35,7 +45,7 @@ RUN mkdir ros_ws/src -p &&\
     pwd &&\
     cmake --version &&\
     source /opt/ros/foxy/setup.bash && \
-    colcon build
+    colcon build --symlink-install
 
 
 
