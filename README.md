@@ -45,7 +45,7 @@ In the third tab
 ```
 source /opt/ros/foxy/setup.bash
 source /src/ros_ws/install/local_setup.bash
-ros2 run 
+ros2 run flight_club mavros_arm_example.py
 ```
 
 #### Exercise 2
