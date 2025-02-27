@@ -4,7 +4,7 @@ import rclpy
 from rclpy.node import Node
 from std_srvs.srv import Trigger
 from mavros_msgs.msg import State
-from mavros_msgs.srv import SetMode, CommandBool
+from mavros_msgs.srv import SetMode, CommandBool, CommandTOL
 from geometry_msgs.msg import PoseStamped
 import logging
 
@@ -27,6 +27,7 @@ class CommNode(Node):
         self.state_sub = self.create_subscription(State, '/mavros/state', self.state_callback, 10)
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
         self.arm_client = self.create_client(CommandBool, '/mavros/cmd/arming')
+        self.land_client = self.create_client(CommandTOL, '/mavros/cmd/land')
 
         self.timer = self.create_timer(0.1, self.publish_pose)  # Publish at 10 Hz
 
@@ -47,9 +48,7 @@ class CommNode(Node):
         return response
 
     def land_callback(self, request, response):
-        # TODO: for some reason it takes forever for the drone to land ....
-        # TODO: also would be nice to disarm the drone after it lands ... 
-        self.get_logger().info('Land Requested. Drone landing.')
+        self.get_logger().info('Land Requested. Drone landing using CommandTOL service.')
         self.should_fly = False
         self.command_land()
         response.success = True
@@ -57,7 +56,7 @@ class CommNode(Node):
         return response
 
     def abort_callback(self, request, response):
-        self.get_logger().warning('Abort Requested. Emergency landing.')
+        self.get_logger().warning('Abort Requested. Emergency landing using CommandTOL service.')
         self.should_fly = False
         self.command_land()
         response.success = True
@@ -77,16 +76,20 @@ class CommNode(Node):
 
             if not self.state.armed:
                 self.arm_drone()
-        elif self.state.armed:
-            self.command_land()
 
     def command_land(self):
-        self.get_logger().info('Commanding drone to land.')
-        pose = PoseStamped()
-        pose.pose.position.x = 0.0
-        pose.pose.position.y = 0.0
-        pose.pose.position.z = 0.0  # Set to ground level
-        self.pose_pub.publish(pose)
+        self.get_logger().info('Commanding drone to land using CommandTOL service.')
+        if self.land_client.wait_for_service(timeout_sec=1.0):
+            req = CommandTOL.Request()
+            req.min_pitch = 0.0
+            req.yaw = 0.0
+            req.latitude = 0.0
+            req.longitude = 0.0
+            req.altitude = 0.0  # Target altitude for landing
+            self.land_client.call_async(req)
+            self.get_logger().info("Land command sent via CommandTOL service")
+        else:
+            self.get_logger().warn("CommandTOL service not available")
 
     def set_offboard_mode(self):
         if self.set_mode_client.wait_for_service(timeout_sec=1.0):
