@@ -48,6 +48,20 @@ source /src/ros_ws/install/local_setup.bash
 ros2 run 
 ```
 
+#### Simulating Realsense or Vicon Positioning system
+```
+cd /src/PX4-Autopilot
+make px4_sitl gazebo-classic_iris
+```
+
+In px terminal
+```
+param set EKF2_HGT_REF 2
+param set EKF2_GPS_CTRL 0
+param set EKF2_EV_CTRL 11
+param save
+```
+
 #### Exercise 2
 Run the container and mount the flight_club source code (Note that I haven't tested this command yet, I used to copy the folder using docker cp so there might be permission issues to fix):
 ```
