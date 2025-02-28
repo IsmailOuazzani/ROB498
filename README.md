@@ -12,6 +12,13 @@ ssh jetson@192.178.107.146
 ```
 The password is `jetson`.
 
+
+### Realsense Camera
+Topic can be launched with:
+```
+ros2 launch realsense2_camera rs_launch.py
+```
+
 ### Run the simulation
 Clone the PX4 source code in this repo:
 Build the Docker image once:
