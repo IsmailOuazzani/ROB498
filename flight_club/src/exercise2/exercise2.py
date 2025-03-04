@@ -29,7 +29,7 @@ class CommNode(Node):
         self.arm_client = self.create_client(CommandBool, '/mavros/cmd/arming')
         self.land_client = self.create_client(CommandTOL, '/mavros/cmd/land')
 
-        self.timer = self.create_timer(0.1, self.publish_pose)  # Publish at 10 Hz
+        self.timer = self.create_timer(0.05, self.publish_pose)  
 
     def state_callback(self, msg):
         self.state = msg
@@ -64,18 +64,20 @@ class CommNode(Node):
         return response
 
     def publish_pose(self):
+        self.get_logger().info(f"State: {self.state.mode} | Armed: {self.state.armed}  | Should fly: {self.should_fly}")
         if self.should_fly:
             pose = PoseStamped()
             pose.pose.position.x = 0.0
             pose.pose.position.y = 0.0
-            pose.pose.position.z = 2.0  # Set desired altitude
+            pose.pose.position.z = 1.0  # Set desired altitude
             self.pose_pub.publish(pose)
-
-            if self.state.mode != "OFFBOARD":
-                self.set_offboard_mode()
-
-            if not self.state.armed:
+            if not self.state.armed and self.state.mode == "OFFBOARD" and self.should_fly:
                 self.arm_drone()
+            # if self.state.mode != "OFFBOARD":
+            #     self.set_offboard_mode()
+
+            # if not self.state.armed:
+            #     self.arm_drone()
 
     def command_land(self):
         self.get_logger().info('Commanding drone to land using CommandTOL service.')

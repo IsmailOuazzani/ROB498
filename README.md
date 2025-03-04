@@ -31,7 +31,7 @@ Run the Docker container:
 ```
 docker compose run --rm rob498 
 ```
-Open 3 additional windows using `docker exec -it capstone /bin/bash`
+Open 2 additional windows using `docker exec -it capstone /bin/bash`
 In the first window, run the following command (it might take a while the first time, we recommend commiting your docker container in case you need to stop your container/remove the container):
 
 ```
@@ -45,18 +45,10 @@ cd /src/ros_ws
 colcon build --symlink-install
 source /src/ros_ws/install/local_setup.bash
 ros2 run mavros install_geographiclib_datasets.sh
-ros2 launch px4_autonomy_modules mavros.launch.py fcu_url:="udp://:14540@127.0.0.1:14557"
+ros2 launch combined_launch.py
 ```
 
-In the third tab
-```
-source /opt/ros/foxy/setup.bash
-source /src/ros_ws/install/local_setup.bash
-ros2 run flight_club exercise2.py
-```
-
-
-In the fourth tab, you can launch the drone running
+In the third tab, you can launch the drone running
 ```
 source /opt/ros/foxy/setup.bash
 ros2 service call /rob498_drone_06/comm/launch std_srvs/srv/Trigger

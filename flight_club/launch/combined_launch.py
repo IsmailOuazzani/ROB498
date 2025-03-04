@@ -17,7 +17,7 @@ def generate_launch_description():
     # Include the MAVROS launch file with the fcu_url argument
     mavros_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(mavros_launch_path),
-        launch_arguments={'fcu_url': 'udp://:14540@127.0.0.1:14557'}.items()
+        # launch_arguments={'fcu_url': 'udp://:14540@127.0.0.1:14557'}.items()
     )
 
     # Node to launch exercise2 from flight_club

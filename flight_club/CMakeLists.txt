@@ -11,8 +11,8 @@ ament_python_install_package(${PROJECT_NAME})
 # Install Python executables
 install(PROGRAMS
   src/exercise2/exercise2.py
-  src/exercise2/realsense.py
   src/exercise2/mavros_arm_example.py
+  src/exercise2/realsense.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
