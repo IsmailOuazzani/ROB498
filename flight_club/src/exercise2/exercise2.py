@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 TOPIC_NAMESPACE = 'rob498_drone_06'
+SET_HEIGHT = 1.5
 
 class CommNode(Node):
     def __init__(self):
@@ -25,21 +26,50 @@ class CommNode(Node):
         self.state = State()
         self.pose_pub = self.create_publisher(PoseStamped, '/mavros/setpoint_position/local', 10)
         self.state_sub = self.create_subscription(State, '/mavros/state', self.state_callback, 10)
+        self.subscription = self.create_subscription(PoseStamped, '/vicon/ROB498_Drone/ROB498_Drone', self.vicon_callback,10)
+        
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
         self.arm_client = self.create_client(CommandBool, '/mavros/cmd/arming')
         self.land_client = self.create_client(CommandTOL, '/mavros/cmd/land')
 
         self.timer = self.create_timer(0.05, self.publish_pose)  
+        
+        # vicon information
+        self.vicon_poses_to_collect = 100
+        self.vicon_poses_collected_so_far = 0
+        self.vicon_poses = []
+        self.start_pose_calculated = False
+        self.start_pose = PoseStamped()
 
     def state_callback(self, msg):
         self.state = msg
+    
+    def vicon_callback(self, msg):
+
+        if self.vicon_poses_collected_so_far < self.vicon_poses_to_collect:
+            # append the pose to the list
+            self.vicon_poses_collected_so_far += 1
+            self.vicon_poses.append(msg)
+
+        elif self.vicon_poses_collected_so_far >= self.vicon_poses_to_collect and not self.start_pose_calculated:
+            self.start_pose_calculated = True
+            # calculate the average pose
+            self.start_pose.pose.position.x = sum([pose.pose.position.x for pose in self.vicon_poses]) / len(self.vicon_poses)
+            self.start_pose.pose.position.y = sum([pose.pose.position.y for pose in self.vicon_poses]) / len(self.vicon_poses)
+            self.start_pose.pose.position.z = sum([pose.pose.position.z for pose in self.vicon_poses]) / len(self.vicon_poses)
+
 
     def launch_callback(self, request, response):
-        self.get_logger().info('Launch Requested. Drone taking off.')
-        self.should_fly = True
-        response.success = True
-        response.message = "Launch command executed."
-        return response
+        if self.start_pose_calculated:
+            self.get_logger().info('Launch Requested. Drone taking off.')
+            self.should_fly = True
+            response.success = True
+            response.message = "Launch command executed."
+            return response
+        else:
+            response.success = False
+            response.message = "Launch command failed. Vicon data not available."
+            return response
 
     def test_callback(self, request, response):
         self.get_logger().info('Test Requested. Drone performing tasks.')
@@ -65,11 +95,11 @@ class CommNode(Node):
 
     def publish_pose(self):
         self.get_logger().info(f"State: {self.state.mode} | Armed: {self.state.armed}  | Should fly: {self.should_fly}")
-        if self.should_fly:
+        if self.should_fly and self.start_pose_calculated:
             pose = PoseStamped()
             pose.pose.position.x = 0.0
             pose.pose.position.y = 0.0
-            pose.pose.position.z = 1.0  # Set desired altitude
+            pose.pose.position.z = SET_HEIGHT-self.start_pose.pose.position.z
             self.pose_pub.publish(pose)
             if not self.state.armed and self.state.mode == "OFFBOARD" and self.should_fly:
                 self.arm_drone()
