@@ -13,6 +13,9 @@ install(PROGRAMS
   src/exercise2/exercise2.py
   src/exercise2/mavros_arm_example.py
   src/exercise2/realsense.py
+  src/hiding/raycaster.py
+  src/hiding/occlusion_mapping.py
+  src/hiding/occlusion_visualizer.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

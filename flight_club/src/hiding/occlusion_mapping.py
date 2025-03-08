@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import numpy as np
 
 # Create a voxel grid (resolution 0.1m)
