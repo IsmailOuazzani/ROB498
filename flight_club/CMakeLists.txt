@@ -18,6 +18,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   src/exercise2/exercise2.py
   src/exercise2/mavros_arm_example.py
+<<<<<<< HEAD
   src/exercise3/exercise3.py
   src/waypoint_publisher.py
   src/vicon.py
@@ -25,6 +26,12 @@ install(PROGRAMS
   src/velocity_control.py
   src/visualizer.py
   src/realsense.py
+=======
+  src/exercise2/realsense.py
+  src/hiding/raycaster.py
+  src/hiding/occlusion_mapping.py
+  src/hiding/occlusion_visualizer.py
+>>>>>>> 16edc44 (fix directory structure)
   DESTINATION lib/${PROJECT_NAME}
 )
 
