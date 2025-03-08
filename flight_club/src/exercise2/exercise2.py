@@ -21,7 +21,9 @@ class CommNode(Node):
         self.srv_test = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/test', self.test_callback)
         self.srv_land = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/land', self.land_callback)
         self.srv_abort = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/abort', self.abort_callback)
+        self.srv_set_offboard = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/set_offboard', self.set_offboard_callback)
         
+        self.should_offboard = False # Only for simulation
         self.should_fly = False
         self.state = State()
         self.pose_pub = self.create_publisher(PoseStamped, '/mavros/setpoint_position/local', 10)
@@ -40,12 +42,14 @@ class CommNode(Node):
         self.vicon_poses = []
         self.start_pose_calculated = False
         self.start_pose = PoseStamped()
+        self.start_pose.pose.position.x = 0.0
+        self.start_pose.pose.position.y = 0.0
+        self.start_pose.pose.position.z = 0.0
 
     def state_callback(self, msg):
         self.state = msg
     
     def vicon_callback(self, msg):
-
         if self.vicon_poses_collected_so_far < self.vicon_poses_to_collect:
             # append the pose to the list
             self.vicon_poses_collected_so_far += 1
@@ -60,16 +64,14 @@ class CommNode(Node):
 
 
     def launch_callback(self, request, response):
+        self.get_logger().info('Launch Requested. Drone taking off.')
         if self.start_pose_calculated:
-            self.get_logger().info('Launch Requested. Drone taking off.')
-            self.should_fly = True
-            response.success = True
-            response.message = "Launch command executed."
-            return response
+          response.message = "Launch command executed."
         else:
-            response.success = False
-            response.message = "Launch command failed. Vicon data not available."
-            return response
+          response.message = "Vicon poses not collected yet. Lauching without."
+        self.should_fly = True
+        response.success = True
+        return response
 
     def test_callback(self, request, response):
         self.get_logger().info('Test Requested. Drone performing tasks.')
@@ -92,15 +94,24 @@ class CommNode(Node):
         response.success = True
         response.message = "Abort command executed."
         return response
+    
+    def set_offboard_callback(self, request, response):
+        self.get_logger().info('Set Offboard Requested. Setting Offboard mode.')
+        self.should_offboard = True
+        response.success = True
+        response.message = "Will attempt to gain offboard mode."
+        return response
 
     def publish_pose(self):
-        self.get_logger().info(f"State: {self.state.mode} | Armed: {self.state.armed}  | Should fly: {self.should_fly}")
-        if self.should_fly and self.start_pose_calculated:
+        self.get_logger().info(f"State: {self.state.mode} | Armed: {self.state.armed}  | Should offboard: {self.should_offboard}  | Should fly: {self.should_fly}")
+        if self.should_fly:
             pose = PoseStamped()
             pose.pose.position.x = 0.0
             pose.pose.position.y = 0.0
             pose.pose.position.z = SET_HEIGHT-self.start_pose.pose.position.z
             self.pose_pub.publish(pose)
+            if self.state.mode != "OFFBOARD" and self.should_offboard:
+                self.set_offboard_mode()
             if not self.state.armed and self.state.mode == "OFFBOARD" and self.should_fly:
                 self.arm_drone()
 
@@ -118,7 +129,7 @@ class CommNode(Node):
         else:
             self.get_logger().warn("CommandTOL service not available")
 
-    def set_offboard_mode(self): #TODO: create a service to switch to offboard mode for simulation
+    def set_offboard_mode(self):
         if self.set_mode_client.wait_for_service(timeout_sec=1.0):
             req = SetMode.Request()
             req.custom_mode = "OFFBOARD"
