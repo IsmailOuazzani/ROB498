@@ -30,6 +30,7 @@ Note: we need to implement a service to set to offboard mode for the simulation 
 #### Exercise 2
 Run the Docker container:
 ```
+xhost +local:docker
 docker compose run --rm rob498 
 ```
 Open 2 additional windows using `docker exec -it capstone /bin/bash`
@@ -46,12 +47,14 @@ cd /src/ros_ws
 colcon build --symlink-install
 source /src/ros_ws/install/local_setup.bash
 ros2 run mavros install_geographiclib_datasets.sh
-ros2 launch combined_launch.py
+chmod +x /src/ros_ws/src/drone_packages/flight_club/src/exercise2/exercise2.py
+ros2 launch flight_club sim_launch.py
 ```
 
 In the third tab, you can launch the drone running
 ```
 source /opt/ros/foxy/setup.bash
+ros2 service call /rob498_drone_06/comm/set_offboard std_srvs/srv/Trigger
 ros2 service call /rob498_drone_06/comm/launch std_srvs/srv/Trigger
 ```
 
@@ -75,7 +78,7 @@ ros2 launch realsense2_camera rs_launch.py
 
 Back in the first window, launch the exercise 2 node:
 ```
-ros2 launch real_launch.py
+ros2 launch flight_club real_launch.py
 ```
 
 Set the board to offboard mode with the controller. Then, ssh into the drone in another terminal and run:
@@ -89,3 +92,9 @@ ros2 service call /rob498_drone_06/comm/land std_srvs/srv/Trigger
 ```
 
 
+### Worlds
+To launch the simulation in a custom world:
+```
+export PX4_SITL_WORLD=/src/ros_ws/src/drone_packages/simulation/worlds/easy.sdf
+make px4_sitl gazebo-classic
+```

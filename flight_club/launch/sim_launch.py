@@ -28,16 +28,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Node to launch the realsense node from flight_club
-    realsense_node = Node(
-        package='flight_club',
-        executable='realsense.py',
-        name='realsense_node',
-        output='screen'
-    )
-
     return LaunchDescription([
         mavros_launch,
         exercise2_node,
-        realsense_node
-    ])
+        ])
