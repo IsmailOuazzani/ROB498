@@ -10,14 +10,14 @@
         <collision name="collision">
           <geometry>
             <mesh>
-              <uri>model://soldier/model.dae</uri>
+              <uri>file://../models/soldier/model.dae</uri>
             </mesh>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <mesh>
-              <uri>model://soldier/model.dae</uri>
+              <uri>file://../models/soldier/model.dae</uri>
             </mesh>
           </geometry>
         </visual>
