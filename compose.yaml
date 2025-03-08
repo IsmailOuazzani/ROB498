@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  rob498:
+    image: base-capstone 
+    container_name: rob498_container
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./:/src/ros_ws/src/drone_packages:rw
+    network_mode: "host"
+    privileged: true 
+    tty: true
+    command: /bin/bash
