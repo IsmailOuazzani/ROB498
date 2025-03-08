@@ -103,11 +103,6 @@ class CommNode(Node):
             self.pose_pub.publish(pose)
             if not self.state.armed and self.state.mode == "OFFBOARD" and self.should_fly:
                 self.arm_drone()
-            # if self.state.mode != "OFFBOARD":
-            #     self.set_offboard_mode()
-
-            # if not self.state.armed:
-            #     self.arm_drone()
 
     def command_land(self):
         self.get_logger().info('Commanding drone to land using CommandTOL service.')
@@ -123,7 +118,7 @@ class CommNode(Node):
         else:
             self.get_logger().warn("CommandTOL service not available")
 
-    def set_offboard_mode(self):
+    def set_offboard_mode(self): #TODO: create a service to switch to offboard mode for simulation
         if self.set_mode_client.wait_for_service(timeout_sec=1.0):
             req = SetMode.Request()
             req.custom_mode = "OFFBOARD"
