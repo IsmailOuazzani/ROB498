@@ -21,9 +21,13 @@ class CommNode(Node):
         self.srv_test = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/test', self.test_callback)
         self.srv_land = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/land', self.land_callback)
         self.srv_abort = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/abort', self.abort_callback)
+<<<<<<< HEAD
         self.srv_set_offboard = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/set_offboard', self.set_offboard_callback)
         
         self.should_offboard = False # Only for simulation
+=======
+        
+>>>>>>> dd19baa (Exercise 2  (#1))
         self.should_fly = False
         self.state = State()
         self.pose_pub = self.create_publisher(PoseStamped, '/mavros/setpoint_position/local', 10)
@@ -42,14 +46,21 @@ class CommNode(Node):
         self.vicon_poses = []
         self.start_pose_calculated = False
         self.start_pose = PoseStamped()
+<<<<<<< HEAD
         self.start_pose.pose.position.x = 0.0
         self.start_pose.pose.position.y = 0.0
         self.start_pose.pose.position.z = 0.0
+=======
+>>>>>>> dd19baa (Exercise 2  (#1))
 
     def state_callback(self, msg):
         self.state = msg
     
     def vicon_callback(self, msg):
+<<<<<<< HEAD
+=======
+
+>>>>>>> dd19baa (Exercise 2  (#1))
         if self.vicon_poses_collected_so_far < self.vicon_poses_to_collect:
             # append the pose to the list
             self.vicon_poses_collected_so_far += 1
@@ -64,6 +75,7 @@ class CommNode(Node):
 
 
     def launch_callback(self, request, response):
+<<<<<<< HEAD
         self.get_logger().info('Launch Requested. Drone taking off.')
         if self.start_pose_calculated:
           response.message = "Launch command executed."
@@ -72,6 +84,18 @@ class CommNode(Node):
         self.should_fly = True
         response.success = True
         return response
+=======
+        if self.start_pose_calculated:
+            self.get_logger().info('Launch Requested. Drone taking off.')
+            self.should_fly = True
+            response.success = True
+            response.message = "Launch command executed."
+            return response
+        else:
+            response.success = False
+            response.message = "Launch command failed. Vicon data not available."
+            return response
+>>>>>>> dd19baa (Exercise 2  (#1))
 
     def test_callback(self, request, response):
         self.get_logger().info('Test Requested. Drone performing tasks.')
