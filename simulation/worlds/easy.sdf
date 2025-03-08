@@ -2,22 +2,31 @@
 <sdf version="1.7">
   <world name="default">
 
+   <!-- A global light source -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+    <!-- A ground plane -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
     <!-- Soldier Model -->
     <model name="soldier">
       <static>true</static>
-      <pose>-1.60303 -1.64513 0 0 0 0</pose>
+      <pose>-25 0 0 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
             <mesh>
-              <uri>model://soldier/model.dae</uri>
+              <uri>file://../models/soldier/model.dae</uri>
             </mesh>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <mesh>
-              <uri>model://soldier/model.dae</uri>
+              <uri>file://../models/soldier/model.dae</uri>
             </mesh>
           </geometry>
         </visual>
@@ -27,7 +36,7 @@
     <!-- Cylinder 1 -->
     <model name="cylinder1">
       <static>true</static>
-      <pose>6.3779 -0.424408 2.5 0 0 0</pose>
+      <pose>-25 5 2.5 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
@@ -57,7 +66,7 @@
     <!-- Cylinder 2 -->
     <model name="cylinder2">
       <static>true</static>
-      <pose>4.44238 -2.5729 2.5 0 0 0</pose>
+      <pose>-8 -8 2.5 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
@@ -87,7 +96,7 @@
     <!-- Cylinder 3 -->
     <model name="cylinder3">
       <static>true</static>
-      <pose>9.96156 -1.1775 2.5 0 0 0</pose>
+      <pose>-5 0.5 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
