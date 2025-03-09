@@ -48,6 +48,7 @@ colcon build --symlink-install
 source /src/ros_ws/install/local_setup.bash
 ros2 run mavros install_geographiclib_datasets.sh
 chmod +x /src/ros_ws/src/drone_packages/flight_club/src/exercise2/exercise2.py
+chmod +x /src/ros_ws/src/drone_packages/flight_club/src/exercise3/exercise3.py
 ros2 launch flight_club sim_launch.py
 ```
 

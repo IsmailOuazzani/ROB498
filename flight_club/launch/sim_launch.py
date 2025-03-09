@@ -28,7 +28,15 @@ def generate_launch_description():
         output='screen'
     )
 
+    # Node to launch exercise2 from flight_club
+    exercise3_node = Node(
+        package='flight_club',
+        executable='exercise3.py',
+        name='exercise3_node',
+        output='screen'
+    )
+
     return LaunchDescription([
         mavros_launch,
-        exercise2_node,
+        exercise3_node,
         ])
