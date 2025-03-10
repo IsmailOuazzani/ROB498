@@ -1,7 +1,16 @@
 FROM osrf/ros:foxy-desktop
 
 RUN apt-get update -y &&\
-    apt-get install wget
+    apt-get install -y \
+    wget \
+    python3-pip \
+    python3-dev \
+    python3-setuptools \
+    python3-tk
+
+
+# Install Python dependencies
+RUN pip3 install numpy pyyaml scipy 
 
 # Install PX4
 WORKDIR /src
@@ -15,16 +24,6 @@ RUN sudo apt install apt-transport-https ca-certificates gnupg software-properti
     sudo apt update -y &&\
     sudo apt install cmake -y
 
-# Install Micro XRCE-DDS Agent & Client
-RUN git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git &&\
-    cd Micro-XRCE-DDS-Agent && \
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    make && \
-    sudo make install && \
-    sudo ldconfig /usr/local/lib/
-
 # Install mavros
 RUN sudo apt-get install -y ros-foxy-gazebo-ros2-control \
     ros-foxy-xacro \
@@ -33,7 +32,7 @@ RUN sudo apt-get install -y ros-foxy-gazebo-ros2-control \
     ros-foxy-mavros-extras \
     ros-foxy-octomap-server \
     ros-foxy-rtabmap-ros \
-    ros-foxy-realsense2-camera
+    ros-foxy-realsense2-camera 
 
 # Install example
 SHELL ["/bin/bash", "-c"]
