@@ -1,0 +1,20 @@
+max_acc:
+  x: 2.0
+  y: 2.0
+  z: 2.0
+min_acc:
+  x: -2.0
+  y: -2.0
+  z: -2.0
+max_vel:
+  x: 1.5
+  y: 1.5
+  z: 1.5
+min_vel:
+  x: -1.5
+  y: -1.5
+  z: -1.5
+magnitude_step: 3
+angle_step: 7
+dt: 0.01
+vertex_angle_deg: 180
