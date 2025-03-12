@@ -5,7 +5,7 @@ from rclpy.node import Node
 from std_srvs.srv import Trigger
 from mavros_msgs.msg import State
 from mavros_msgs.srv import SetMode, CommandBool, CommandTOL
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped, Pose, PoseArray
 from gazebo_msgs.srv import SpawnEntity, DeleteEntity
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 import logging
@@ -27,6 +27,7 @@ class CommNode(Node):
         self.srv_land = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/land', self.land_callback)
         self.srv_abort = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/abort', self.abort_callback)
         self.srv_set_offboard = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/set_offboard', self.set_offboard_callback)
+        self.sub_waypoints = self.create_subscription(PoseArray, f'{TOPIC_NAMESPACE}/comm/waypoints', callback_waypoints, 10)
         
         self.should_offboard = False # Only for simulation
         self.should_fly = False
@@ -34,6 +35,7 @@ class CommNode(Node):
         self.pose_pub = self.create_publisher(PoseStamped, '/mavros/setpoint_position/local', 10)
         self.state_sub = self.create_subscription(State, '/mavros/state', self.state_callback, 10)
         self.subscription = self.create_subscription(PoseStamped, '/vicon/ROB498_Drone/ROB498_Drone', self.vicon_callback,10)
+        self.waypoint_received = False
         
         self.pose = PoseStamped()
 
@@ -77,6 +79,16 @@ class CommNode(Node):
 
     def mavros_pose_callback(self, msg: PoseStamped):
         self.pose = msg
+
+    def callback_waypoints(msg):
+        if self.waypoint_received:
+            return
+        print('Waypoints Received')
+        self.waypoint_received = True
+        for pose in msg.poses:
+            pos = np.array([pose.position.x, pose.position.y, pose.position.z])
+            self.waypoints = np.vstack((self.waypoints, pos))
+            # planning
     
     def vicon_callback(self, msg):
         if self.vicon_poses_collected_so_far < self.vicon_poses_to_collect:
@@ -187,7 +199,7 @@ class TargetTrackerPath():
         #     (0, 0, height),
         # ]
 
-        self.waypoints = [(1-math.cos(t), math.sin(t), height) for t in np.linspace(0, 2*np.pi, 10)]
+        self.waypoints = [(3*(1-math.cos(t)), 3*(math.sin(t)), height) for t in np.linspace(0, 2*np.pi, 40)]
 
         #TODO: add orientation tracking --- use planner to get the easiest orientations at each waypoint
 
@@ -196,7 +208,7 @@ class TargetTrackerPath():
         self.cur_waypoint = 0
         self.target_pose = self.get_target_pose()
         self.waiting = False
-        self.wait_time = 0.1 # seconds
+        self.wait_time = 0.0 # seconds
         self.wait_end = 0
         self.allowed_pose_error = 0.2
         self.get_logger = node.get_logger
