@@ -11,6 +11,7 @@ from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 import logging
 import time
 import math
+import numpy as np
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -177,14 +178,17 @@ class CommNode(Node):
 
 class TargetTrackerPath():
     def __init__(self, node, height):
-        # square path
-        self.waypoints = [
-            (0, 0, height),
-            (1, 0, height),
-            (1, 1, height),
-            (0, 1, height),
-            (0, 0, height),
-        ]
+        # # square path
+        # self.waypoints = [
+        #     (0, 0, height),
+        #     (1, 0, height),
+        #     (1, 1, height),
+        #     (0, 1, height),
+        #     (0, 0, height),
+        # ]
+
+        self.waypoints = [(1-math.cos(t), math.sin(t), height) for t in np.linspace(0, 2*np.pi, 10)]
+
         #TODO: add orientation tracking --- use planner to get the easiest orientations at each waypoint
 
         self.node = node
@@ -192,7 +196,7 @@ class TargetTrackerPath():
         self.cur_waypoint = 0
         self.target_pose = self.get_target_pose()
         self.waiting = False
-        self.wait_time = 5 # seconds
+        self.wait_time = 0.1 # seconds
         self.wait_end = 0
         self.allowed_pose_error = 0.2
         self.get_logger = node.get_logger
@@ -215,6 +219,10 @@ class TargetTrackerPath():
         return pose
 
     def update_target(self, cur_pose):
+        if self.cur_waypoint >= len(self.waypoints):
+            self.get_logger().info('All waypoints reached, stopping updates.')
+            return
+        
         if self.waiting:
             self.get_logger().info(f'Waiting for target: {self.cur_waypoint} at {self.target_xyz}')
             
