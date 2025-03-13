@@ -1,6 +1,7 @@
 import numpy as np  
 import yaml
 import os
+import math
 
 from path_planning_utils.point_mass_trajectory_optimization import space_curve, velocity_curve, acceleration_curve
 from path_planning_utils.trajectory_computations import compute_all_trajectories
@@ -106,12 +107,14 @@ def compute_Ns(shortest, dict_res, N):
 
 
 if __name__ == '__main__':
-    points = [[0, 0, 0], [1, 1, 4], [2, -3, 2   ], [3, 3, 3]]
+    points = [[0.2, 0.2, 0.2], [1, 1, 4], [2, -3, 2   ], [3, 3, 3]]
+    height = 1
+    points = [[3*(1-math.cos(t)), 3*(math.sin(t)), height] for t in np.linspace(0, 2*np.pi, 6)]
     X0_no_tn, tf, N = initial_guess(points)
     # combine the results
     X0 = [tf]
     X0.extend(X0_no_tn)
-    # plot_3d_trajectory(X0, points, show=True)
+    plot_3d_trajectory(X0, points, show=True)
     print(f"tf: {tf}")
     compare_trajectories_casadi_plot(X0, points, show=True)
 

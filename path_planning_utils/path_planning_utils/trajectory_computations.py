@@ -1,6 +1,17 @@
 import sys
-from .point_mass_trajectory_optimization import calculate_tf, compute_alpha
+import numpy as np
+from .point_mass_trajectory_optimization import calculate_tf, compute_alpha, space_curve
 from .shortest_path_search import shortest_path, shortest_path_multi_pose
+
+def collision_detected(params, height = 0.15):
+    ''' Given a trajectory, check if the trajectory goes below a set height. '''
+    # compute the z trajectory
+    t_values = np.linspace(0, params[0][6], 10)
+    z_values = [space_curve(t,params[2][0], params[2][1], params[2][2], params[2][3], params[2][4], params[2][5], params[2][7], params[2][8]) for t in t_values]
+    if min(z_values) < height:
+        return True
+    return False
+
 
 def compute_single_trajectory(start_point, end_point, a_max, a_min, v_max, v_min, starting_velocity, ending_velocity):
     ''' Given an initial 2D poind, a final 2D point, velocities and acceleration constraints, compute the x and y trajectory parameters. 
@@ -49,7 +60,7 @@ def compute_trajectory_set(points, a_max, a_min, v_max, v_min, starting_velocity
             df[f'{start_index}_{i}'] = {}
         for j, vf in enumerate(ending_velocity_list):
             params = compute_single_trajectory(start_point, end_point, a_max, a_min, v_max, v_min, v0, vf)
-            if params == None:
+            if params == None or collision_detected(params): 
                 continue
             if start_index == 0 and prediction_horizon == 1:
                 if (not f'{end_index}_f' in df[f'{start_index}'].keys()) or (params[0][6]<df[f'{start_index}'][f'{end_index}_f'][0][6]):

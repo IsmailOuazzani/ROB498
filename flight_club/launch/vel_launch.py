@@ -39,8 +39,8 @@ def generate_launch_description():
     # Node to launch exercise2 from flight_club
     exercise3_node = Node(
         package='flight_club',
-        executable='exercise3.py',
-        name='exercise3_node',
+        executable='velocity_controll.py',
+        name='vel_control_node',
         output='screen'
     )
 

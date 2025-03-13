@@ -6,12 +6,16 @@ from std_srvs.srv import Trigger
 from mavros_msgs.msg import State
 from mavros_msgs.srv import SetMode, CommandBool, CommandTOL
 from geometry_msgs.msg import PoseStamped, Pose, PoseArray
+from flight_club.msg import TrajectoryPlan
 from gazebo_msgs.srv import SpawnEntity, DeleteEntity
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 import logging
 import time
 import math
 import numpy as np
+from path_planning_utils.path_generation import initial_guess
+from path_planning_utils.plotting import decompose_X
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -27,7 +31,7 @@ class CommNode(Node):
         self.srv_land = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/land', self.land_callback)
         self.srv_abort = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/abort', self.abort_callback)
         self.srv_set_offboard = self.create_service(Trigger, f'{TOPIC_NAMESPACE}/comm/set_offboard', self.set_offboard_callback)
-        self.sub_waypoints = self.create_subscription(PoseArray, f'{TOPIC_NAMESPACE}/comm/waypoints', callback_waypoints, 10)
+        self.planned_waypoints = self.create_subscription(TrajectoryPlan, f'{TOPIC_NAMESPACE}/comm/trajectory', self.waypoints_callback, 10)
         
         self.should_offboard = False # Only for simulation
         self.should_fly = False
@@ -61,7 +65,7 @@ class CommNode(Node):
 
         self.timer = self.create_timer(0.05, self.publish_pose)
 
-        # vicon information
+        # calibration of realsense to vicon
         self.vicon_poses_to_collect = 30
         self.vicon_poses_collected_so_far = 0
         self.vicon_poses = []
@@ -80,15 +84,21 @@ class CommNode(Node):
     def mavros_pose_callback(self, msg: PoseStamped):
         self.pose = msg
 
-    def callback_waypoints(msg):
+    def waypoints_callback(self, msg):
         if self.waypoint_received:
             return
-        print('Waypoints Received')
+        self.get_logger().info('Received plan')
         self.waypoint_received = True
-        for pose in msg.poses:
-            pos = np.array([pose.position.x, pose.position.y, pose.position.z])
-            self.waypoints = np.vstack((self.waypoints, pos))
-            # planning
+        N = msg.n_points
+        tf = msg.tf
+        X0_no_tn = msg.data
+        X = [tf]
+        X.extend(X0_no_tn)        
+        qs, q_dots, us = decompose_X(X, 3, 9)
+        # make sure the tracker is aware of the new waypoints
+        qs, qs_dots, us = qs.T, q_dots.T, us.T
+        self.get_logger().info(f'Waypoints received: {N}')
+        self.target_tracker.waypoints = qs
     
     def vicon_callback(self, msg):
         if self.vicon_poses_collected_so_far < self.vicon_poses_to_collect:
@@ -145,11 +155,12 @@ class CommNode(Node):
         return response
 
     def publish_pose(self):
-        self.get_logger().info(f"State: {self.state.mode} | Armed: {self.state.armed}  | Should offboard: {self.should_offboard}  | Should fly: {self.should_fly}")
+        # self.get_logger().    info(f"State: {self.state.mode} | Armed: {self.state.armed}  | Should offboard: {self.should_offboard}  | Should fly: {self.should_fly}")
         if self.should_fly:
-            self.target_tracker.update_target(self.pose)
+            if self.waypoint_received:
+                self.target_tracker.update_target(self.pose)
             pose = self.target_tracker.target_pose
-            self.get_logger().info(f'Target Pose XYZ: ({pose.pose.position.x}, {pose.pose.position.y}, {pose.pose.position.z})')
+            # self.get_logger().info(f'Target Pose XYZ: ({pose.pose.position.x}, {pose.pose.position.y}, {pose.pose.position.z})')
             self.pose_pub.publish(pose)
             if self.state.mode != "OFFBOARD" and self.should_offboard:
                 self.set_offboard_mode()
@@ -199,7 +210,8 @@ class TargetTrackerPath():
         #     (0, 0, height),
         # ]
 
-        self.waypoints = [(3*(1-math.cos(t)), 3*(math.sin(t)), height) for t in np.linspace(0, 2*np.pi, 40)]
+        # self.waypoints = [(3*(1-math.cos(t)), 3*(math.sin(t)), height) for t in np.linspace(0, 2*np.pi, 40)]
+        self.waypoints = [(0, 0, SET_HEIGHT)]
 
         #TODO: add orientation tracking --- use planner to get the easiest orientations at each waypoint
 
@@ -223,7 +235,10 @@ class TargetTrackerPath():
 
     def get_target_pose(self):
         pose = PoseStamped()
-        x, y, z = self.target_xyz
+        xyz = self.target_xyz
+        x = xyz[0]
+        y = xyz[1]
+        z = xyz[2]
         print("xyz", x, y, z, type(x), type(y), type(z))
         pose.pose.position.x = float(x)
         pose.pose.position.y = float(y)

@@ -131,3 +131,80 @@ def compare_trajectories_casadi_plot(Xn, points, state_dim = 3, qs_size = 9, sho
     if not show:
         return fig
     plt.show()
+
+
+def plan_vs_execute(Xn, real_data, state_dim = 3, qs_size = 9, show=True, v_bounds=None, a_bounds=None):
+    # real_data is a list of which each element is [t, x, y, z, vx, vy, vz]
+    # decompose real_data
+    t_real = [point[0] for point in real_data]
+    x_real = [point[1] for point in real_data]
+    y_real = [point[2] for point in real_data]
+    z_real = [point[3] for point in real_data]
+    vx_real = [point[4] for point in real_data]
+    vy_real = [point[5] for point in real_data]
+    vz_real = [point[6] for point in real_data]
+    # state dim, ts and Ns are lists
+    # plot X
+    number_of_plots = 2*state_dim
+    # define the subplots
+    rows = int(np.ceil(np.sqrt(number_of_plots)))
+    cols = int(np.ceil(number_of_plots / rows))
+    fig, axes = plt.subplots(rows, cols, figsize=(15, 15))
+    axes = np.ravel(axes)
+
+
+    tf = float(Xn[0])  
+ 
+    qs, qs_dots, us = decompose_X(Xn, state_dim, qs_size)
+    qs_dot_real = [vx_real, vy_real, vz_real]
+
+    # generate trajectory graph
+    qs = [k for k in zip(*qs)]
+    ee_list = []
+    for j in range(len(qs)):
+        ee_list.append(qs[j])
+        
+    t = np.linspace(0, tf, len(qs_dots[0]))
+
+    # time vs x
+    axes[0].plot(t_real, x_real, label='Real data')
+    axes[0].plot(t, [float(point[0]) for point in ee_list], label='Planned data')
+    axes[0].set_title('Time vs x')
+    axes[0].set_xlabel('Time')
+    axes[0].set_ylabel('x')
+    axes[0].legend()
+
+    # plot time vs y
+    axes[1].plot(t_real, y_real, label='Real data')
+    axes[1].plot(t, [float(point[1]) for point in ee_list], label='Planned data')
+    axes[1].set_title('Time vs y')
+    axes[1].set_xlabel('Time')
+    axes[1].set_ylabel('y')
+    axes[1].legend()
+
+    # plot time vs z
+    axes[2].plot(t_real, z_real, label='Real data')
+    axes[2].plot(t, [float(point[2]) for point in ee_list], label='Planned data')
+    axes[2].set_title('Time vs z')
+    axes[2].set_xlabel('Time')
+    axes[2].set_ylabel('z')
+    axes[2].legend()
+
+    
+    # plot velocities and accelerations
+    for j in range(state_dim):
+        v = [float(qs_dots[j][k]) for k in range(len(qs_dots[j]))]
+        v_real = qs_dot_real[j]
+        axes[j+3].plot(t, v, label='Planned data')
+        axes[j+3].plot(t_real, v_real, label='Real data')
+        if v_bounds:
+            axes[j+3].plot(t, [v_bounds[0][j]]*len(t), 'r--')
+            axes[j+3].plot(t, [v_bounds[1][j]]*len(t), 'r--')
+        axes[j+3].set_title(f'Velocities of q{j}')
+        axes[j+3].set_xlabel('Time')
+        axes[j+3].set_ylabel('Velocity')
+
+    fig.subplots_adjust(hspace=0.4, wspace=0.4)
+    if not show:
+        return fig
+    plt.show()
