@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 
 
 SEEKER_OFFSET = np.array([0.0, 0.0, 1.5, 0.0, 0.0, 0.0])
-OBSTACLE_SAFETY_MARGIN = 0.2
-NUM_SAMPLES_HORIZONTAL = 80
-NUM_SAMPLES_VERTICAL = 30
+OBSTACLE_SAFETY_MARGIN = 0.0 # TODO: this should be considered for visualisation and path planning, but not for occlusion
+NUM_SAMPLES_HORIZONTAL = 50
+NUM_SAMPLES_VERTICAL = 10
 
 
 logging.basicConfig(
@@ -124,41 +124,6 @@ def compute_occlusion_map(
 
     return occluded_points, visible_points
 
-def construct_voxel_grid(
-        occlusion_map: np.ndarray,
-        sample_points: np.ndarray,
-        combined_mesh: trimesh.Trimesh,
-) -> np.ndarray:
-    """Returns a grid representation of the map.
-    Each cell is a 3d point in space. The value is:
-      0 if within obstacles,
-      1 if occluded,
-      2 if visible.
-    """
-    # Start by assuming every point is visible (value 2)
-    voxel_values = np.full(sample_points.shape[0], fill_value=2, dtype=int)
-
-    # Mark cells inside obstacles (value 0) using trimesh's contains method
-    inside_mask = combined_mesh.contains(sample_points)
-    voxel_values[inside_mask] = 0
-
-    # Create a boolean mask for points that are occluded.
-    # Because sample_points and occlusion_map are 2D arrays (N,3) and (M,3) respectively,
-    # we use a structured view to enable row-wise comparison.
-    dtype = np.dtype((np.void, sample_points.dtype.itemsize * sample_points.shape[1]))
-    sample_points_view = np.ascontiguousarray(sample_points).view(dtype).ravel()
-    occlusion_map_view = np.ascontiguousarray(occlusion_map).view(dtype).ravel()
-    occluded_mask = np.in1d(sample_points_view, occlusion_map_view)
-
-    # For cells not inside an obstacle, mark occluded points with 1
-    voxel_values[np.logical_and(occluded_mask, ~inside_mask)] = 1
-
-    # Reshape the flat array to a 3D grid.
-    # Here we assume that sample_points were generated via meshgrid with:
-    #   NUM_SAMPLES_HORIZONTAL (x), NUM_SAMPLES_HORIZONTAL (y), and NUM_SAMPLES_VERTICAL (z)
-    grid_shape = (NUM_SAMPLES_HORIZONTAL, NUM_SAMPLES_HORIZONTAL, NUM_SAMPLES_VERTICAL)
-    voxel_grid = voxel_values.reshape(grid_shape)
-    return voxel_grid
 
 
 def compute_waypoints(
@@ -196,6 +161,16 @@ if __name__ == "__main__":
   combined_mesh = trimesh.util.concatenate(meshes)
   logging.debug(f"Combined mesh: {combined_mesh}")
 
+  for i, mesh in enumerate(meshes):
+    print(f"Mesh {i} bounding box: {mesh.bounds}")
+
+
+  # Instead of checking the combined mesh, check each individual obstacle.
+  if any(mesh.contains([world.seeker_pose[:3]])[0] for mesh in meshes):
+      logging.error("Camera position is inside an obstacle. Aborting.")
+      exit()
+
+
   # Map bounds
   grid_x = np.linspace(-40, 40, NUM_SAMPLES_HORIZONTAL)
   grid_y = np.linspace(-40, 40, NUM_SAMPLES_HORIZONTAL)
@@ -207,6 +182,7 @@ if __name__ == "__main__":
       sample_points=sample_points, 
       combined_mesh=combined_mesh,
   )
+
   logging.info(f"Computed {len(occluded_points)} occluded points ({len(occluded_points) / len(sample_points) * 100:.2f}% of total)")
   logging.debug(f"Occluded points: {occluded_points}")
 
