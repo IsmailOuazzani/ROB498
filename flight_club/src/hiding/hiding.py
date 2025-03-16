@@ -95,36 +95,87 @@ def get_transform_from_pose(pose: np.ndarray) -> np.ndarray:
     transform[0:3, 3] = [x, y, z]
     return transform
 
+
 def compute_occlusion_map(
         seeker_pose: np.ndarray, 
         sample_points: np.ndarray,
         combined_mesh: trimesh.Trimesh,
         ) -> tuple[np.ndarray, np.ndarray]:
-    # TODO: take into account orientation of the camera
+    # Compute ray origins and directions from the seeker to each sample point.
     seeker_coords = seeker_pose[:3]
-    # Compute ray directions and distances from camera
     directions = sample_points - seeker_coords
     distances = np.linalg.norm(directions, axis=1)
-    # Avoid division by zero for rays originating at the camera
     nonzero = distances > 1e-6
     directions_norm = np.zeros_like(directions)
     directions_norm[nonzero] = directions[nonzero] / distances[nonzero][:, None]
     directions_norm[~nonzero] = np.array([1, 0, 0])  # dummy direction
 
-    # Repeat camera position for each ray
+    # Prepare origins for each ray.
     origins = np.tile(seeker_coords, (len(sample_points), 1))
-    # Use trimesh's batch ray intersection: returns the distance to the first intersection (or NaN if none)
-    hit_distances = combined_mesh.ray.intersects_first(
-        ray_origins=origins, ray_directions=directions_norm)
-
-    # A point is visible if there's no hit (NaN) or if the hit is farther than the sample point distance
-    visible_mask = np.isnan(hit_distances) | (hit_distances >= distances)
+    
+    # Use trimesh's ray intersections that return all hit locations.
+    locations, index_ray, index_tri = combined_mesh.ray.intersects_location(
+        ray_origins=origins, ray_directions=directions_norm, multiple_hits=True)
+    
+    # Initialize an array for the closest valid (front-face) hit for each ray.
+    hit_distances = np.full(len(sample_points), np.nan)
+    
+    if len(locations) > 0:
+        # Compute distances for each intersection.
+        all_dists = np.linalg.norm(locations - origins[index_ray], axis=1)
+        # Get the corresponding face normals.
+        face_normals = combined_mesh.face_normals[index_tri]
+        # For each intersection, compute the dot product between the ray direction and the face normal.
+        ray_dirs = directions_norm[index_ray]
+        # A valid front-face hit should have the ray hitting the front (i.e. dot < 0).
+        valid = np.einsum('ij,ij->i', ray_dirs, face_normals) < 0
+        
+        # For each ray, choose the smallest distance among valid hits.
+        for i in range(len(sample_points)):
+            mask = (index_ray == i) & valid
+            if np.any(mask):
+                hit_distances[i] = np.min(all_dists[mask])
+    
+    # A sample point is visible if either no valid hit exists or the valid hit is further than the sample point.
+    visible_mask = np.isnan(hit_distances) | ((hit_distances + 1e-6) >= distances)
     visible_points = sample_points[visible_mask]
     occluded_points = sample_points[~visible_mask]
+    
+    return visible_points, occluded_points
 
-    return occluded_points, visible_points
+def visualize_occlusion_map(
+        visible_points: np.ndarray,
+        occluded_points: np.ndarray,
+        inside_points: np.ndarray,
+        show_visible: bool = False,
+):
+  visible_pc = trimesh.points.PointCloud(
+      visible_points,
+      colors=np.tile([255, 0, 0, 255], (len(visible_points), 1))
+  )
+  occluded_pc = trimesh.points.PointCloud(
+      occluded_points,
+      colors=np.tile([0, 255, 0, 255], (len(occluded_points), 1))
+  )
+  inside_pc = trimesh.points.PointCloud(
+        inside_points,
+        colors=np.tile([0, 0, 255, 255], (len(inside_points), 1))  # blue
+  )
 
+  scene = trimesh.Scene()
+  if show_visible:
+    scene.add_geometry(visible_pc)
+  scene.add_geometry(occluded_pc)
+  scene.add_geometry(inside_pc)
 
+  # Mark the camera position with a small sphere.
+  camera_sphere = trimesh.creation.icosphere(radius=0.5)
+  camera_sphere.apply_translation(world.seeker_pose[:3])
+  camera_sphere.visual.face_colors = [255, 255, 0, 255]  # yellow
+  scene.add_geometry(camera_sphere)
+
+  print("Displaying scene. Close the window to exit.")
+  scene.show()
 
 def compute_waypoints(
         occlusion_map: np.ndarray,
@@ -182,7 +233,6 @@ if __name__ == "__main__":
       sample_points=sample_points, 
       combined_mesh=combined_mesh,
   )
-
   logging.info(f"Computed {len(occluded_points)} occluded points ({len(occluded_points) / len(sample_points) * 100:.2f}% of total)")
   logging.debug(f"Occluded points: {occluded_points}")
 
@@ -192,36 +242,11 @@ if __name__ == "__main__":
   inside_points = sample_points[inside_mask]
   logging.info(f"Found {len(inside_points)} points in obstacles ({len(inside_points) / len(sample_points) * 100:.2f}% of total)")
 
-
-  # TODO: move this in a separate function, with headless flag
-  visible_pc = trimesh.points.PointCloud(
-      visible_points,
-      colors=np.tile([255, 0, 0, 255], (len(visible_points), 1))
-  )
-  occluded_pc = trimesh.points.PointCloud(
-      occluded_points,
-      colors=np.tile([0, 255, 0, 255], (len(occluded_points), 1))
-  )
-  inside_pc = trimesh.points.PointCloud(
-        inside_points,
-        colors=np.tile([0, 0, 255, 255], (len(inside_points), 1))  # blue
-  )
-
-  scene = trimesh.Scene()
-  # scene.add_geometry(visible_pc)
-  scene.add_geometry(occluded_pc)
-  scene.add_geometry(inside_pc)
-
-
-  # Mark the camera position with a small sphere.
-  camera_sphere = trimesh.creation.icosphere(radius=0.5)
-  camera_sphere.apply_translation(world.seeker_pose[:3])
-  camera_sphere.visual.face_colors = [255, 255, 0, 255]  # yellow
-  scene.add_geometry(camera_sphere)
-
-  print("Displaying scene. Close the window to exit.")
-  scene.show()
-
+  if not headless:
+      visualize_occlusion_map(
+          visible_points=visible_points, 
+          occluded_points=occluded_points, 
+          inside_points=inside_points)
 
 
   
