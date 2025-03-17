@@ -18,6 +18,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   src/waypoint_publisher.py
   src/pose_comparator.py
+  src/exercise2/vicon_node.py
   src/exercise3/exercise3.py
   src/exercise3/planner.py
   src/exercise3/velocity_controll.py
