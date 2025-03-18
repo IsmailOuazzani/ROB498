@@ -61,6 +61,7 @@ ros2 service call /rob498_drone_6/comm/send_waypoints std_srvs/srv/Trigger
 4th tab:
 ```bash
 source /opt/ros/foxy/setup.bash
+source ros_ws/install/setup.bash
 ros2 run flight_club visualizer.py
 ```
 

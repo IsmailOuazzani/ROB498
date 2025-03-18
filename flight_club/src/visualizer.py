@@ -65,7 +65,7 @@ class TrajectoryMonitor(Node):
         
         qs, qs_dots, us = decompose_X(X, 3, 9)
         qs, qs_dots, us = qs.T, qs_dots.T, us.T
-
+        self.qs_wpt = qs
         self.get_logger().info(f'Waypoints received: {N}')
         
         # self.target_tracker.qs = qs
@@ -132,8 +132,9 @@ class TrajectoryMonitor(Node):
         plt.figure()
         plt.plot(traj[:, 1], traj[:, 2], label='Executed')
         if len(self.X) > 0:
-            waypoints = np.array(self.X[1:]).reshape(-1, 3)
-            plt.scatter(waypoints[:, 0], waypoints[:, 1], color='red', label='Planned Waypoints')
+            x = [float(point[0]) for point in self.qs_wpt]
+            y = [float(point[1]) for point in self.qs_wpt]
+            plt.scatter(x, y, color='red', label='Planned Waypoints')
         plt.xlabel('X Position')
         plt.ylabel('Y Position')
         plt.legend()
