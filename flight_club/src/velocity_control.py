@@ -19,7 +19,7 @@ from path_planning_utils.plotting import decompose_X, plan_vs_execute
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-TOPIC_NAMESPACE = 'rob498_drone_06'
+TOPIC_NAMESPACE = 'rob498_drone_6'
 SET_HEIGHT = 1.5
 
 class CommNode(Node):
@@ -266,6 +266,7 @@ class TargetTrackerPath():
 def main(args=None):
     rclpy.init(args=args)
     node = CommNode()
+    node.get_logger().info("Running...")
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

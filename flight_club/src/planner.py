@@ -16,7 +16,7 @@ import numpy as np
 from flight_club.msg import TrajectoryPlan
 from path_planning_utils.path_generation import initial_guess
 from path_planning_utils.plotting import plot_3d_trajectory
-TOPIC_NAMESPACE = 'rob498_drone_06'
+TOPIC_NAMESPACE = 'rob498_drone_6'
 
 class Planner(Node):
     def __init__(self):
@@ -39,6 +39,7 @@ class Planner(Node):
             self.mavros_pose_callback,
             qos_profile
         )
+        self.get_logger().info("Running...")
     
     def mavros_pose_callback(self, msg: PoseStamped):
         self.pose = msg

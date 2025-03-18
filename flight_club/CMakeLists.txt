@@ -16,15 +16,15 @@ ament_python_install_package(${PROJECT_NAME})
 
 # Install Python executables
 install(PROGRAMS
-  src/waypoint_publisher.py
-  src/pose_comparator.py
-  src/exercise2/vicon_node.py
-  src/exercise3/exercise3.py
-  src/exercise3/planner.py
-  src/exercise3/velocity_controll.py
   src/exercise2/exercise2.py
   src/exercise2/mavros_arm_example.py
-  src/exercise2/realsense.py
+  src/exercise3/exercise3.py
+  src/waypoint_publisher.py
+  src/vicon.py
+  src/planner.py
+  src/velocity_control.py
+  src/visualizer.py
+  src/realsense.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

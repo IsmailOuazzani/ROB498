@@ -47,16 +47,21 @@ cd /src/ros_ws
 colcon build --symlink-install
 source /src/ros_ws/install/local_setup.bash
 ros2 run mavros install_geographiclib_datasets.sh
-chmod +x /src/ros_ws/src/drone_packages/flight_club/src/exercise2/exercise2.py
-chmod +x /src/ros_ws/src/drone_packages/flight_club/src/exercise3/exercise3.py
-ros2 launch flight_club sim_launch.py
+chmod +x /src/ros_ws/src/drone_packages/flight_club/src/*
+ros2 launch flight_club vel_launch.py
 ```
 
 In the third tab, you can launch the drone running
 ```
 source /opt/ros/foxy/setup.bash
-ros2 service call /rob498_drone_06/comm/set_offboard std_srvs/srv/Trigger
-ros2 service call /rob498_drone_06/comm/launch std_srvs/srv/Trigger
+ros2 service call /rob498_drone_6/comm/set_offboard std_srvs/srv/Trigger
+ros2 service call /rob498_drone_6/comm/launch std_srvs/srv/Trigger
+ros2 service call /rob498_drone_6/comm/send_waypoints std_srvs/srv/Trigger
+```
+4th tab:
+```bash
+source /opt/ros/foxy/setup.bash
+ros2 run flight_club visualizer.py
 ```
 
 ### Run the physical robot

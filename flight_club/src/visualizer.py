@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, TwistStamped
@@ -12,7 +14,7 @@ from path_planning_utils.path_generation import initial_guess
 from path_planning_utils.plotting import decompose_X, plan_vs_execute
 
 
-TOPIC_NAMESPACE = 'rob498_drone_06'
+TOPIC_NAMESPACE = 'rob498_drone_6'
 
 class TrajectoryMonitor(Node):
     def __init__(self):
@@ -45,6 +47,7 @@ class TrajectoryMonitor(Node):
         self.X = []
         self.waypoint_received = False
         self.trajectory_start_time = None
+        self.get_logger().info("Running...")
 
     def waypoints_callback(self, msg):
         if self.waypoint_received:
@@ -65,10 +68,10 @@ class TrajectoryMonitor(Node):
 
         self.get_logger().info(f'Waypoints received: {N}')
         
-        self.target_tracker.qs = qs
-        self.target_tracker.qs_dots = qs_dots
-        self.target_tracker.N = N
-        self.target_tracker.tf = tf
+        # self.target_tracker.qs = qs
+        # self.target_tracker.qs_dots = qs_dots
+        # self.target_tracker.N = N
+        # self.target_tracker.tf = tf
 
         # Start the execution time
         self.trajectory_start_time = time.time()
@@ -136,6 +139,7 @@ class TrajectoryMonitor(Node):
         plt.legend()
         plt.title('Executed vs Planned Trajectory')
         plt.show()
+        plan_vs_execute(self.X, self.trajectory_history)
 
     def shutdown_callback(self):
         if self.enable_plot:

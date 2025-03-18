@@ -1,7 +1,8 @@
 import os
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.substitutions import LaunchConfiguration
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
@@ -20,7 +21,6 @@ def generate_launch_description():
         launch_arguments={'fcu_url': 'udp://:14540@127.0.0.1:14557'}.items()
     )
 
-    # waypoint publisher for task 3 testing
     wp_pub_node = Node(
         package='flight_club',
         executable='waypoint_publisher.py',
@@ -28,18 +28,9 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Node to launch exercise2 from flight_club
-    exercise2_node = Node(
+    velocity_control_node = Node(
         package='flight_club',
-        executable='exercise2.py',
-        name='exercise2_node',
-        output='screen'
-    )
-
-    # Node to launch exercise2 from flight_club
-    exercise3_node = Node(
-        package='flight_club',
-        executable='velocity_controll.py',
+        executable='velocity_control.py',
         name='vel_control_node',
         output='screen'
     )
@@ -50,9 +41,24 @@ def generate_launch_description():
         name='planner_node',
         output='screen')
 
+    vicon_node = Node(
+        package='flight_club',
+        executable='vicon.py',
+        name='estimator_node',
+        output='screen',
+        parameters=[{
+            'sim': LaunchConfiguration('sim')
+        }]
+    )
+
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'sim', 
+            default_value='True', 
+            description='simulation? (True/False)'),
         mavros_launch,
-        exercise3_node,
+        velocity_control_node,
         planner_node,
-        wp_pub_node
+        wp_pub_node,
+        vicon_node
         ])

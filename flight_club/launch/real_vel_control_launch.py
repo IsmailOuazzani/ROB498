@@ -46,8 +46,10 @@ def generate_launch_description():
         package='flight_club',
         executable='vicon_node.py',
         name='estimator_node',
-        output='screen'
-
+        output='screen',
+        parameters=[{
+            'sim': LaunchConfiguration('sim')
+        }]
     )
 
     return LaunchDescription([

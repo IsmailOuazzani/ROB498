@@ -7,7 +7,7 @@ from geometry_msgs.msg import PoseArray, Pose
 import math
 import numpy as np
 
-TOPIC_NAMESPACE = 'rob498_drone_06'
+TOPIC_NAMESPACE = 'rob498_drone_6'
 
 class WaypointPublisher(Node):
     def __init__(self):
