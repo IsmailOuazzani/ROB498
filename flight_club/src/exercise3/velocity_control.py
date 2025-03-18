@@ -141,9 +141,11 @@ class CommNode(Node):
                 vel_topic = TwistStamped()
                 pose.header.stamp = self.get_clock().now().to_msg()
                 vel_topic.header.stamp = self.get_clock().now().to_msg()
-                pose.pose.position.x = qs[0]
-                pose.pose.position.y = qs[1]
-                pose.pose.position.z = qs[2]
+
+                # inflate measured errors from trajectory to artificially increase aggressiveness of tracking 
+                pose.pose.position.x = qs[0] + (qs[0] - self.pose.pose.position.x) * 0.2
+                pose.pose.position.y = qs[1] + (qs[1] - self.pose.pose.position.y) * 0.2
+                pose.pose.position.z = qs[2] + (qs[2] - self.pose.pose.position.z) * 0.8
                 if t < self.target_tracker.tf: 
                     if len(self.trajectory_history) > 0:
                         prev_x = self.trajectory_history[-1][1]
@@ -164,7 +166,7 @@ class CommNode(Node):
                     plan_vs_execute(self.X, self.trajectory_history)
 
 
-                # self.pose_pub.publish(pose)
+                self.pose_pub.publish(pose)
 
             
             else:
@@ -221,9 +223,7 @@ class TargetTrackerPath():
         self.qs_dots = [[0,0,0]]
         self.N = 0
         self.tf = 0
-
-        #TODO: add orientation tracking --- use planner to get the easiest orientations at each waypoint
-
+        
         self.node = node
 
         self.cur_waypoint = 0
@@ -250,8 +250,17 @@ class TargetTrackerPath():
         lower_time = lower_index_time*self.dt
         upper_time = (lower_index_time +1)*self.dt
         
-        q = self.qs[lower_index] + (self.qs[upper_index] - self.qs[lower_index])*(t - lower_time)/(upper_time - lower_time)
+        # look ahead to account for lagging controller, should be less for aggressive motions!!! TODO: adjust as needed
+        # velocity look ahead
+        lower_index = min(self.N-1, lower_index+int(0.2/self.dt))
+        upper_index = min(self.N-1, upper_index+int(0.2/self.dt))
         q_dot = self.qs_dots[lower_index] + (self.qs_dots[upper_index] - self.qs_dots[lower_index])*(t - lower_time)/(upper_time - lower_time)
+
+        # position look ahead
+        lower_index = min(self.N-1, lower_index+int(0.4/self.dt))
+        upper_index = min(self.N-1, upper_index+int(0.4/self.dt))
+
+        q = self.qs[lower_index] + (self.qs[upper_index] - self.qs[lower_index])*(t - lower_time)/(upper_time - lower_time)
         return q, q_dot
 
 def main(args=None):
