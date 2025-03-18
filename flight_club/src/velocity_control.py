@@ -65,14 +65,22 @@ class CommNode(Node):
 
         self.timer = self.create_timer(0.05, self.publish_pose)
 
-        self.target_tracker = TargetTrackerPath(node=self, height = SET_HEIGHT)
         self.trajectory_history = []
+        self.has_first_pose = False
 
     def state_callback(self, msg):
         self.state = msg
 
     def mavros_pose_callback(self, msg: PoseStamped):
         self.pose = msg
+        if not self.has_first_pose:
+            self.has_first_pose = True
+            xyz = (
+                self.pose.position.x,
+                self.pose.position.y,
+                self.pose.position.z + SET_HEIGHT
+            )
+            self.target_tracker = TargetTrackerPath(node=self, xyz)
 
     def waypoints_callback(self, msg):
         if self.waypoint_received:
@@ -169,7 +177,7 @@ class CommNode(Node):
                 self.pose_pub.publish(pose)
 
             
-            else:
+            elif self.has_first_pose:
                 point = self.target_tracker.qs[0]
                 pose = PoseStamped()
                 pose.header.stamp = self.get_clock().now().to_msg()
@@ -217,9 +225,9 @@ class CommNode(Node):
             self.get_logger().warn("Arming service not available")
 
 class TargetTrackerPath():
-    def __init__(self, node, height):
+    def __init__(self, node, initial_xyz):
         
-        self.qs = [(0, 0, SET_HEIGHT)]
+        self.qs = [initial_xyz]
         self.qs_dots = [[0,0,0]]
         self.N = 0
         self.tf = 0
@@ -232,7 +240,6 @@ class TargetTrackerPath():
         self.wait_end = 0
         self.allowed_pose_error = 0.2
         self.get_logger = node.get_logger
-
 
     def interpolate(self, t):
         offset=0
