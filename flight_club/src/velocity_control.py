@@ -40,6 +40,7 @@ class CommNode(Node):
         self.state_sub = self.create_subscription(State, '/mavros/state', self.state_callback, 10)
         self.waypoint_received = False
         self.trajectory_ended = False
+        self.vel_control = False
         
         self.pose = PoseStamped()
 
@@ -155,7 +156,7 @@ class CommNode(Node):
                 pose.pose.position.x = qs[0] + (qs[0] - self.pose.pose.position.x) * 0.2
                 pose.pose.position.y = qs[1] + (qs[1] - self.pose.pose.position.y) * 0.2
                 pose.pose.position.z = qs[2] + (qs[2] - self.pose.pose.position.z) * 0.8
-                if t < self.target_tracker.tf: 
+                if t < self.target_tracker.tf and self.vel_control: 
                     if len(self.trajectory_history) > 0:
                         prev_x = self.trajectory_history[-1][1]
                         prev_y = self.trajectory_history[-1][2]
@@ -170,6 +171,17 @@ class CommNode(Node):
                     vel_topic.twist.linear.y = qs_dots[1]
                     vel_topic.twist.linear.z = qs_dots[2]
                     self.vel_pub.publish(vel_topic)
+                elif not self.vel_control:
+                    current_position = (
+                        self.pose.pose.position.x,
+                        self.pose.pose.position.y,
+                        self.pose.pose.position.z
+                    )
+                    next_target = self.target_tracker.get_next_target(current_position)
+
+                    pose.pose.position.x = float(next_target[0])
+                    pose.pose.position.y = float(next_target[1])
+                    pose.pose.position.z = float(next_target[2])
                 # else:
                 #     #plot the data
                 #     plan_vs_execute(self.X, self.trajectory_history)
@@ -270,6 +282,28 @@ class TargetTrackerPath():
 
         q = self.qs[lower_index] + (self.qs[upper_index] - self.qs[lower_index])*(t - lower_time)/(upper_time - lower_time)
         return q, q_dot
+    
+    def get_next_target(self, current_position):
+        """
+        Returns the next waypoint to travel to.
+        Moves to the next waypoint if within 20 cm of the current target.
+        """
+        if self.cur_waypoint >= len(self.qs):
+            return self.qs[-1]  # Stay at the last waypoint
+
+        target = self.qs[self.cur_waypoint]
+
+        # Compute distance to the current waypoint
+        distance = ((current_position[0] - target[0]) ** 2 +
+                    (current_position[1] - target[1]) ** 2 +
+                    (current_position[2] - target[2]) ** 2) ** 0.5
+
+        # If within 20 cm, move to the next waypoint
+        if distance < 0.2 and self.cur_waypoint < len(self.qs) - 1:
+            self.cur_waypoint += 1
+            target = self.qs[self.cur_waypoint]
+
+        return target 
 
 def main(args=None):
     rclpy.init(args=args)

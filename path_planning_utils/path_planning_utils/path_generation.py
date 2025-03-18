@@ -24,6 +24,11 @@ def initial_guess(points,  position_noise=0, velocity_noise=0, acceleration_nois
     magnitude_step = params['magnitude_step']
     angle_step = params['angle_step']
     dt = params['dt']
+    if dt == 0:
+        X0_no_tn = []
+        for point in points:
+            X0_no_tn.extend([*point, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])  # Position + Zero Velocity + Zero Acceleration
+        return X0_no_tn, 0.0, int(len(points))
     vertex_angle_deg = params['vertex_angle_deg']
     
     max_vel_mag = np.linalg.norm(max_vel)

@@ -16,5 +16,5 @@ min_vel:
   z: -1
 magnitude_step: 3
 angle_step: 4
-dt: 0.01
+dt: 0
 vertex_angle_deg: 180

@@ -54,7 +54,7 @@ class CameraPoseForward(Node):
     def pose_callback(self, msg):
         # Store received pose data in buffer
 
-        if len(self.pose_buffer) >= 10 and not self.origin_set:
+        if not self.origin_set and len(self.pose_buffer) >= 10:
             self.pose_buffer.append(msg.pose)
             
             # Compute the average position

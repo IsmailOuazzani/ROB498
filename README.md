@@ -54,6 +54,7 @@ ros2 launch flight_club vel_launch.py
 In the third tab, you can launch the drone running
 ```
 source /opt/ros/foxy/setup.bash
+source /src/ros_ws/install/local_setup.bash
 ros2 service call /rob498_drone_6/comm/set_offboard std_srvs/srv/Trigger
 ros2 service call /rob498_drone_6/comm/launch std_srvs/srv/Trigger
 ros2 service call /rob498_drone_6/comm/send_waypoints std_srvs/srv/Trigger
