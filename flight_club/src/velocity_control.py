@@ -76,11 +76,11 @@ class CommNode(Node):
         if not self.has_first_pose:
             self.has_first_pose = True
             xyz = (
-                self.pose.position.x,
-                self.pose.position.y,
-                self.pose.position.z + SET_HEIGHT
+                self.pose.pose.position.x,
+                self.pose.pose.position.y,
+                self.pose.pose.position.z + SET_HEIGHT
             )
-            self.target_tracker = TargetTrackerPath(node=self, xyz)
+            self.target_tracker = TargetTrackerPath(self, xyz)
 
     def waypoints_callback(self, msg):
         if self.waypoint_received:
@@ -169,9 +169,9 @@ class CommNode(Node):
                     vel_topic.twist.linear.y = qs_dots[1]
                     vel_topic.twist.linear.z = qs_dots[2]
                     self.vel_pub.publish(vel_topic)
-                else:
-                    #plot the data
-                    plan_vs_execute(self.X, self.trajectory_history)
+                # else:
+                #     #plot the data
+                #     plan_vs_execute(self.X, self.trajectory_history)
 
 
                 self.pose_pub.publish(pose)
