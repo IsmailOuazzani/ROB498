@@ -49,7 +49,8 @@ def generate_launch_description():
         name='estimator_node',
         output='screen',
         parameters=[{
-            'sim': True
+            'sim': False,
+            'remap': False
         }]
     )
 

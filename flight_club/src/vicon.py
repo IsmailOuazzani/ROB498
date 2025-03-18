@@ -11,7 +11,9 @@ class CameraPoseForward(Node):
     def __init__(self):
         super().__init__('camera_pose_forward')
         self.declare_parameter('sim')
+        self.declare_parameter('remap')
         self.sim = self.get_parameter('sim').get_parameter_value().bool_value
+        self.remap = self.get_parameter('remap').get_parameter_value().bool_value
 
         if self.sim:
             self.get_logger().info("vicon: simulation")
@@ -35,11 +37,17 @@ class CameraPoseForward(Node):
             10
         )
         
-        # Initialize state
-        self.pose_buffer = []  # Buffer to hold poses for averaging
-        self.origin_set = False
-        self.origin_position = None
-        self.origin_orientation = None
+        if self.remap:
+            # Initialize state
+            self.pose_buffer = []  # Buffer to hold poses for averaging
+            self.origin_set = False
+            self.origin_position = None
+            self.origin_orientation = None
+        else:
+            self.origin_set = True
+            self.origin_position = np.array([0,0,0])
+            # self.origin_orientation = np.array([0,0,0,1])
+
         
         self.get_logger().info("camera_pose_forward node started")
 
@@ -47,7 +55,7 @@ class CameraPoseForward(Node):
         # Store received pose data in buffer
         self.pose_buffer.append(msg.pose)
 
-        if len(self.pose_buffer) >= 10:
+        if len(self.pose_buffer) >= 10 and not self.origin_set:
             # Compute the average position
             avg_position = np.mean([np.array([pose.position.x, pose.position.y, pose.position.z]) for pose in self.pose_buffer], axis=0)
 
