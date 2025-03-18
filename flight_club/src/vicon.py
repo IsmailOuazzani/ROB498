@@ -53,9 +53,10 @@ class CameraPoseForward(Node):
 
     def pose_callback(self, msg):
         # Store received pose data in buffer
-        self.pose_buffer.append(msg.pose)
 
         if len(self.pose_buffer) >= 10 and not self.origin_set:
+            self.pose_buffer.append(msg.pose)
+            
             # Compute the average position
             avg_position = np.mean([np.array([pose.position.x, pose.position.y, pose.position.z]) for pose in self.pose_buffer], axis=0)
 
