@@ -1,6 +1,7 @@
 import os
 
 from launch import LaunchDescription
+from launch.substitutions import LaunchConfiguration
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
@@ -31,7 +32,7 @@ def generate_launch_description():
     # Node to launch exercise2 from flight_club
     exercise3_node = Node(
         package='flight_club',
-        executable='velocity_controll.py',
+        executable='velocity_control.py',
         name='vel_control_node',
         output='screen'
     )
@@ -44,11 +45,11 @@ def generate_launch_description():
 
     vicon_node = Node(
         package='flight_club',
-        executable='vicon_node.py',
+        executable='vicon.py',
         name='estimator_node',
         output='screen',
         parameters=[{
-            'sim': LaunchConfiguration('sim')
+            'sim': True
         }]
     )
 
@@ -56,5 +57,6 @@ def generate_launch_description():
         mavros_launch,
         exercise3_node,
         planner_node,
-        wp_pub_node
+        wp_pub_node,
+        vicon_node
         ])
