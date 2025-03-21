@@ -25,6 +25,7 @@ install(PROGRAMS
   src/velocity_control.py
   src/visualizer.py
   src/realsense.py
+  src/vicon_to_cam.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 from std_srvs.srv import Trigger
@@ -12,6 +13,9 @@ class PoseTransformNode(Node):
     def __init__(self):
         super().__init__('pose_transform_node')
         
+        qos_profile = QoSProfile(depth=10)
+        qos_profile.reliability = ReliabilityPolicy.BEST_EFFORT
+
         # Subscribers
         self.vicon_sub = self.create_subscription(
             PoseStamped,
@@ -23,7 +27,7 @@ class PoseTransformNode(Node):
             Odometry,
             '/camera/pose/sample',
             self.camera_callback,
-            10
+            qos_profile
         )
         
         # Publisher
@@ -38,8 +42,10 @@ class PoseTransformNode(Node):
         self.logging_active = False
         self.last_sample_time = time.time()
         self.sample_interval = 1.0 / 5  # 5 samples per second
+        self.get_logger().info("Vicon to camera running...")
 
     def vicon_callback(self, msg):
+        # self.get_logger().info("Received vicon...")
         self.vicon_pose = msg
         if self.offset is None:
             self.pose_pub.publish(msg)  # Initially publish raw Vicon data
@@ -47,6 +53,7 @@ class PoseTransformNode(Node):
             self.log_error()
 
     def camera_callback(self, msg):
+        # self.get_logger().info("Received camera...")
         current_time = time.time()
         if current_time - self.last_sample_time < self.sample_interval:
             return  # Skip this sample if not enough time has passed
@@ -78,6 +85,7 @@ class PoseTransformNode(Node):
         return response
     
     def accumulate_offset(self):
+        self.get_logger().info(f"Save xform {len(self.offsets)}...")
         vicon_pos = np.array([
             self.vicon_pose.pose.position.x,
             self.vicon_pose.pose.position.y,
