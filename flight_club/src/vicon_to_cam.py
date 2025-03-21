@@ -48,6 +48,7 @@ class PoseTransformNode(Node):
         # self.get_logger().info("Received vicon...")
         self.vicon_pose = msg
         if self.offset is None:
+            print(msg)
             self.pose_pub.publish(msg)  # Initially publish raw Vicon data
         elif self.logging_active:
             self.log_error()
@@ -58,7 +59,7 @@ class PoseTransformNode(Node):
         if current_time - self.last_sample_time < self.sample_interval:
             return  # Skip this sample if not enough time has passed
         self.last_sample_time = current_time
-        
+        print(msg) 
         pose = PoseStamped()
         pose.header = msg.header
         pose.pose = msg.pose.pose
@@ -98,7 +99,8 @@ class PoseTransformNode(Node):
         ])
         
         self.offsets.append(vicon_pos - camera_pos)
-        
+        self.get_logger().info(f"New offset: {vicon_pos - camera_pos}")
+ 
         vicon_quat = [
             self.vicon_pose.pose.orientation.x,
             self.vicon_pose.pose.orientation.y,
@@ -133,12 +135,16 @@ class PoseTransformNode(Node):
         return response
 
     def apply_offset(self, pose):
+        self.get_logger().info(f"applying offset {self.offset}")
+
         transformed_pose = PoseStamped()
         transformed_pose.header = pose.header
         
         pos = np.array([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z])
+        print(pos)
         pos += self.offset
-        
+        print(pos)
+        print("---")
         transformed_pose.pose.position.x = pos[0]
         transformed_pose.pose.position.y = pos[1]
         transformed_pose.pose.position.z = pos[2]
@@ -150,14 +156,15 @@ class PoseTransformNode(Node):
             pose.pose.orientation.w
         ]
         
-        transformed_rot = self.rotation_offset * R.from_quat(quat)
-        transformed_quat = transformed_rot.as_quat()
+        #transformed_rot = self.rotation_offset * R.from_quat(quat)
+        transformed_quat = quat # transformed_rot.as_quat()
         
         transformed_pose.pose.orientation.x = transformed_quat[0]
         transformed_pose.pose.orientation.y = transformed_quat[1]
         transformed_pose.pose.orientation.z = transformed_quat[2]
         transformed_pose.pose.orientation.w = transformed_quat[3]
         
+        print(transformed_pose)
         return transformed_pose
 
     def log_error(self):
@@ -172,23 +179,23 @@ class PoseTransformNode(Node):
             self.vicon_pose.pose.position.z - transformed_pose.pose.position.z
         ])
         
-        vicon_rot = R.from_quat([
-            self.vicon_pose.pose.orientation.x,
-            self.vicon_pose.pose.orientation.y,
-            self.vicon_pose.pose.orientation.z,
-            self.vicon_pose.pose.orientation.w
-        ])
-        transformed_rot = R.from_quat([
-            transformed_pose.pose.orientation.x,
-            transformed_pose.pose.orientation.y,
-            transformed_pose.pose.orientation.z,
-            transformed_pose.pose.orientation.w
-        ])
+        #vicon_rot = R.from_quat([
+        #    self.vicon_pose.pose.orientation.x,
+        #    self.vicon_pose.pose.orientation.y,
+        #    self.vicon_pose.pose.orientation.z,
+        #    self.vicon_pose.pose.orientation.w
+        #])
+        #transformed_rot = R.from_quat([
+        #    transformed_pose.pose.orientation.x,
+        #    transformed_pose.pose.orientation.y,
+        #    transformed_pose.pose.orientation.z,
+        #    transformed_pose.pose.orientation.w
+        #])
         
-        error_rpy = (vicon_rot.inv() * transformed_rot).as_euler('xyz', degrees=True)
+        #error_rpy = (vicon_rot.inv() * transformed_rot).as_euler('xyz', degrees=True)
         
-        self.get_logger().info(f"Pose Error - X: {error_pos[0]:.4f}, Y: {error_pos[1]:.4f}, Z: {error_pos[2]:.4f}, "
-                               f"Roll: {error_rpy[0]:.2f}, Pitch: {error_rpy[1]:.2f}, Yaw: {error_rpy[2]:.2f}")
+        self.get_logger().info(f"Pose Error - X: {error_pos[0]:.4f}, Y: {error_pos[1]:.4f}, Z: {error_pos[2]:.4f}, ")
+        #                       f"Roll: {error_rpy[0]:.2f}, Pitch: {error_rpy[1]:.2f}, Yaw: {error_rpy[2]:.2f}")
         
 
 def main(args=None):
