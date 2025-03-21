@@ -83,7 +83,7 @@ class CommNode(Node):
             )
             self.get_logger().info(f'Hovering launch pose: ({xyz[0]:.2f}, {xyz[1]:.2f}, {xyz[2]:.2f})')
             self.target_tracker = TargetTrackerPath(self, xyz)
-
+            
     def waypoints_callback(self, msg):
         if self.waypoint_received:
             return

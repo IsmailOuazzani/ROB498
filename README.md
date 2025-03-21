@@ -106,3 +106,6 @@ To launch the simulation in a custom world:
 export PX4_SITL_WORLD=/src/ros_ws/src/drone_packages/simulation/worlds/easy.sdf
 make px4_sitl gazebo-classic
 ```
+
+### Useful commands
+ros2 bag record -a
