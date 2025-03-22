@@ -49,13 +49,13 @@ class PoseTransformNode(Node):
         self.vicon_pose = msg
         self.vicon_pose.header.stamp = Clock().now().to_msg()
 
-        # Log the pose information
-        x, y, z = self.vicon_pose.pose.position.x, self.vicon_pose.pose.position.y, self.vicon_pose.pose.position.z
-        qx, qy, qz, qw = self.vicon_pose.pose.orientation.x, self.vicon_pose.pose.orientation.y, self.vicon_pose.pose.orientation.z, self.vicon_pose.pose.orientation.w
-        self.get_logger().info(
-            f"Received vicon pose: x={x:.2f}, y={y:.2f}, z={z:.2f}, "
-            f"qx={qx:.2f}, qy={qy:.2f}, qz={qz:.2f}, qw={qw:.2f}"
-        )
+        # # Log the pose information
+        # x, y, z = self.vicon_pose.pose.position.x, self.vicon_pose.pose.position.y, self.vicon_pose.pose.position.z
+        # qx, qy, qz, qw = self.vicon_pose.pose.orientation.x, self.vicon_pose.pose.orientation.y, self.vicon_pose.pose.orientation.z, self.vicon_pose.pose.orientation.w
+        # self.get_logger().info(
+        #     f"Received vicon pose: x={x:.2f}, y={y:.2f}, z={z:.2f}, "
+        #     f"qx={qx:.2f}, qy={qy:.2f}, qz={qz:.2f}, qw={qw:.2f}"
+        # )
 
         if self.offset is None:
             self.pose_pub.publish(self.vicon_pose)  # Initially publish raw Vicon data
@@ -70,17 +70,16 @@ class PoseTransformNode(Node):
         pose = PoseStamped()
         pose.header = msg.header
         pose.header.stamp = Clock().now().to_msg()
-        print(type(msg.pose.pose))
         pose.pose = msg.pose.pose
         self.camera_pose = pose
 
-        # Log the pose information
-        x, y, z = pose.pose.position.x, pose.pose.position.y, pose.pose.position.z
-        qx, qy, qz, qw = pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w
-        self.get_logger().info(
-            f"Received camera pose: x={x:.2f}, y={y:.2f}, z={z:.2f}, "
-            f"qx={qx:.2f}, qy={qy:.2f}, qz={qz:.2f}, qw={qw:.2f}"
-        )
+        # # Log the pose information
+        # x, y, z = pose.pose.position.x, pose.pose.position.y, pose.pose.position.z
+        # qx, qy, qz, qw = pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w
+        # self.get_logger().info(
+        #     f"Received camera pose: x={x:.2f}, y={y:.2f}, z={z:.2f}, "
+        #     f"qx={qx:.2f}, qy={qy:.2f}, qz={qz:.2f}, qw={qw:.2f}"
+        # )
 
         if self.offset is None and len(self.offsets) < 500:
             self.accumulate_offset()
@@ -143,7 +142,6 @@ class PoseTransformNode(Node):
         transformed_pose.header = pose.header
 
         pos = np.array([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z])
-        print(pos)
         pos += self.offset
         transformed_pose.pose.position.x = pos[0]
         transformed_pose.pose.position.y = pos[1]
@@ -156,15 +154,14 @@ class PoseTransformNode(Node):
             pose.pose.orientation.w
         ]
         
-        #transformed_rot = self.rotation_offset * R.from_quat(quat)
-        transformed_quat = quat # transformed_rot.as_quat()
+        transformed_rot = self.rotation_offset * R.from_quat(quat)
+        transformed_quat = transformed_rot.as_quat()
         
         transformed_pose.pose.orientation.x = transformed_quat[0]
         transformed_pose.pose.orientation.y = transformed_quat[1]
         transformed_pose.pose.orientation.z = transformed_quat[2]
         transformed_pose.pose.orientation.w = transformed_quat[3]
         
-        print(transformed_pose)
         return transformed_pose
 
     def log_error(self):
@@ -192,7 +189,7 @@ class PoseTransformNode(Node):
            transformed_pose.pose.orientation.w
         ])
         
-        #error_rpy = (vicon_rot.inv() * transformed_rot).as_euler('xyz', degrees=True)
+        error_rpy = (vicon_rot.inv() * transformed_rot).as_euler('xyz', degrees=True)
         
         self.get_logger().info(f"Pose Error - X: {error_pos[0]:.4f}, Y: {error_pos[1]:.4f}, Z: {error_pos[2]:.4f},"
                                f"Roll: {error_rpy[0]:.2f}, Pitch: {error_rpy[1]:.2f}, Yaw: {error_rpy[2]:.2f}")

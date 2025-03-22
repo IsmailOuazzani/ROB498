@@ -33,7 +33,7 @@ Run the Docker container:
 xhost +local:docker
 docker compose run --rm rob498 
 ```
-Open 2 additional windows using `docker exec -it capstone /bin/bash`
+Open 2 additional windows using `sudo docker exec -it cd669baadace /bin/bash`
 In the first window, run the following command (it might take a while the first time, we recommend commiting your docker container in case you need to stop your container/remove the container):
 
 ```
@@ -116,3 +116,4 @@ ros2 run flight_club visualizer_v2c.py
 ros2 service call /stop_calibration std_srvs/srv/Trigger
 
 ros2 bag record -a
+ros2 bag play ros_ws/src/drone_packages/flight_club/src/rosbag2_2025_03_19-13_47_43/
