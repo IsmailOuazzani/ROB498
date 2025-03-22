@@ -24,6 +24,7 @@ install(PROGRAMS
   src/planner.py
   src/velocity_control.py
   src/visualizer.py
+  src/visualizer_v2c.py
   src/realsense.py
   src/vicon_to_cam.py
   DESTINATION lib/${PROJECT_NAME}

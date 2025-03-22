@@ -91,12 +91,12 @@ ros2 launch flight_club real_launch.py
 
 Set the board to offboard mode with the controller. Then, ssh into the drone in another terminal and run:
 ```
-ros2 service call /rob498_drone_06/comm/launch std_srvs/srv/Trigger
+ros2 service call /rob498_drone_6/comm/launch std_srvs/srv/Trigger
 ```
 
 To land:
 ```
-ros2 service call /rob498_drone_06/comm/land std_srvs/srv/Trigger
+ros2 service call /rob498_drone_6/comm/land std_srvs/srv/Trigger
 ```
 
 
@@ -107,5 +107,12 @@ export PX4_SITL_WORLD=/src/ros_ws/src/drone_packages/simulation/worlds/easy.sdf
 make px4_sitl gazebo-classic
 ```
 
-### Useful commands
+## Useful commands
+ros2 run flight_club visualizer.py
+
+#### Task 3 stuff
+ros2 run flight_club vicon_to_cam.py
+ros2 run flight_club visualizer_v2c.py
+ros2 service call /stop_calibration std_srvs/srv/Trigger
+
 ros2 bag record -a
