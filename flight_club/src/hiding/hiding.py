@@ -326,7 +326,7 @@ def compute_waypoints(
           distance = np.linalg.norm(current_node.position - point)
           new_g = current_node.g + distance + MOVE_PENALTY
           new_node = Node(position=point, parent=current_node, g=new_g)
-          h = np.linalg.norm(point - seek_position)
+          h = np.linalg.norm(point - seek_position) #TODO try penalizing h more than g to encourage going for further points first
           f = new_g + h
           queue.put((f, new_node))
 
