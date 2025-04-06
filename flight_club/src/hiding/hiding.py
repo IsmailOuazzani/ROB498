@@ -21,8 +21,8 @@ SEEKER_OFFSET = np.array([0.0, 0.0, 1.5, 0.0, 0.0, 0.0])
 OBSTACLE_SAFETY_MARGIN = 1.0
 
 
-NUM_SAMPLES_HORIZONTAL = 60
-NUM_SAMPLES_VERTICAL = 20
+NUM_SAMPLES_HORIZONTAL = 80
+NUM_SAMPLES_VERTICAL = 30
 
 # NUM_SAMPLES_HORIZONTAL = 50
 # NUM_SAMPLES_VERTICAL = 10
@@ -222,6 +222,21 @@ def visualize_map(
   print("Displaying scene. Close the window to exit.")
   scene.show()
 
+
+def save_map_ply(obstacle_points: np.ndarray, file_path: str | Path) -> None:
+    """
+    Save a point cloud of obstacle points to a .ply file.
+
+    Parameters:
+        obstacle_points (np.ndarray): A numpy array of shape (N, 3) containing the obstacle points.
+        file_path (str | Path): The file path where the .ply file will be saved.
+    """
+    colors = np.tile(np.array([255, 0, 0, 255]), (obstacle_points.shape[0], 1))
+    point_cloud = trimesh.points.PointCloud(obstacle_points, colors=colors)
+    ply_data = point_cloud.export(file_type='ply')
+    with open(file_path, 'wb') as f:
+        f.write(ply_data)
+
 @dataclass
 class Node:
     position: np.ndarray
@@ -371,6 +386,11 @@ if __name__ == "__main__":
   inside_mask = combined_mesh.contains(sample_points)
   inside_points = sample_points[inside_mask]
   logging.info(f"Found {len(inside_points)} points in obstacles ({len(inside_points) / len(sample_points) * 100:.2f}% of total)")
+
+  save_map_ply(
+      obstacle_points=inside_points,
+      file_path=output_dir / "obstacle_points.ply",
+  )
       
   waypoints = compute_waypoints(
       occluded_points=occluded_points,
@@ -385,7 +405,6 @@ if __name__ == "__main__":
 
   logging.info(f"Computed {len(waypoints)} waypoints")
   logging.debug(f"Waypoints: {waypoints}")
-
 
   if not headless:
       visualize_map(
