@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 from pathlib import Path
 from dataclasses import dataclass
@@ -9,11 +10,24 @@ import trimesh
 import trimesh.transformations as tra
 import matplotlib.pyplot as plt
 
+from queue import PriorityQueue
+from dataclasses import dataclass
+
+from scipy.spatial import KDTree
+
+
 
 SEEKER_OFFSET = np.array([0.0, 0.0, 1.5, 0.0, 0.0, 0.0])
-OBSTACLE_SAFETY_MARGIN = 0.0 # TODO: this should be considered for visualisation and path planning, but not for occlusion
-NUM_SAMPLES_HORIZONTAL = 50
-NUM_SAMPLES_VERTICAL = 10
+OBSTACLE_SAFETY_MARGIN = 1.0
+
+
+NUM_SAMPLES_HORIZONTAL = 60
+NUM_SAMPLES_VERTICAL = 20
+
+# NUM_SAMPLES_HORIZONTAL = 50
+# NUM_SAMPLES_VERTICAL = 10
+
+MOVE_PENALTY = 5.0 # penalise trajectory with too many waypoints
 
 
 logging.basicConfig(
@@ -69,8 +83,8 @@ def parse_sdf_map(map_file: Path) -> World:
         if cyl_elem is None:
             continue  # Skip models with no cylinder
 
-        radius = float(cyl_elem.find('radius').text) + OBSTACLE_SAFETY_MARGIN
-        length = float(cyl_elem.find('length').text) + OBSTACLE_SAFETY_MARGIN
+        radius = float(cyl_elem.find('radius').text) 
+        length = float(cyl_elem.find('length').text) 
         models.append(CylinderModel(name, 'cylinder', pose, radius, length))
 
     return World(models, seeker_pose)
@@ -143,11 +157,12 @@ def compute_occlusion_map(
     
     return visible_points, occluded_points
 
-def visualize_occlusion_map(
+def visualize_map(
         visible_points: np.ndarray,
         occluded_points: np.ndarray,
         inside_points: np.ndarray,
         show_visible: bool = False,
+        waypoints: np.ndarray | None = None,
 ):
   visible_pc = trimesh.points.PointCloud(
       visible_points,
@@ -174,23 +189,138 @@ def visualize_occlusion_map(
   camera_sphere.visual.face_colors = [255, 255, 0, 255]  # yellow
   scene.add_geometry(camera_sphere)
 
+  # If waypoints are provided, add black markers and connecting lines.
+  if waypoints is not None and len(waypoints) > 0:
+      # Add waypoint markers (black points).
+      waypoint_cloud = trimesh.points.PointCloud(
+          waypoints,
+          colors=np.tile([0, 0, 0, 255], (len(waypoints), 1))
+      )
+      scene.add_geometry(waypoint_cloud)
+      
+      # For each consecutive pair of waypoints, create a thin cylinder to represent the connecting line.
+      for i in range(len(waypoints) - 1):
+          p0 = waypoints[i]
+          p1 = waypoints[i + 1]
+          direction = p1 - p0
+          length = np.linalg.norm(direction)
+          if length < 1e-6:
+              continue  # Skip if points are too close.
+          # Create a thin cylinder with a small radius.
+          line_cylinder = trimesh.creation.cylinder(radius=0.1, height=length, sections=8)
+          # Align the cylinder's z-axis with the direction from p0 to p1.
+          z_axis = np.array([0, 0, 1])
+          direction_norm = direction / length
+          rotation = trimesh.geometry.align_vectors(z_axis, direction_norm)
+          line_cylinder.apply_transform(rotation)
+          # Translate the cylinder so that its center lies at the midpoint between p0 and p1.
+          midpoint = (p0 + p1) / 2
+          line_cylinder.apply_translation(midpoint)
+          line_cylinder.visual.face_colors = [0, 0, 0, 255]  # black
+          scene.add_geometry(line_cylinder)
+
   print("Displaying scene. Close the window to exit.")
   scene.show()
 
+@dataclass
+class Node:
+    position: np.ndarray
+    parent: Node = None
+    g: float = 0.0
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Node):
+            return NotImplemented
+        return np.array_equal(self.position, other.position)
+
+    def __lt__(self, other: Node) -> bool:
+        return self.g < other.g
+    
+    def __hash__(self) -> int:
+        return hash(tuple(self.position))
+    
+
 def compute_waypoints(
-        occlusion_map: np.ndarray,
+        occluded_points: np.ndarray,
+        obstacle_points: np.ndarray,
         initial_position: np.ndarray,
         seek_position: np.ndarray,
         winning_radius: float,
         iteration_limit: int,
         max_velocity: float,
-        max_game_duration: float,
+        max_turn_duration: float,
 ) -> np.ndarray:
-    ...
+  """Compute waypoints to navigate to the seek position while remaining hidden.
+  """
+
+  # Use A* to compute the shortest path to the seek position. 
+
+  def position_key(pos, precision=2):
+    return tuple(np.round(pos, decimals=precision))
+
+  queue = PriorityQueue()
+  start_node = Node(position=initial_position)
+  queue.put((0, start_node))
+
+  # create all_points, indicating points ok to visit
+  # this starts with all occluded points
+  # add a ball of size winning radius around the seek position
+  num_goal_samples = 20
+  goal_angles = np.linspace(0, 2 * np.pi, num_goal_samples, endpoint=False)
+  goal_points = np.array([
+        seek_position + winning_radius * np.array([np.cos(angle), np.sin(angle), 0])
+        for angle in goal_angles
+    ])
+  all_points_with_obstacles = np.vstack([occluded_points, goal_points])
+  
+  obstacle_tree = KDTree(obstacle_points)
+  safe_all_points = []
+  for point in all_points_with_obstacles:
+      distance, _ = obstacle_tree.query(point)
+      if distance > OBSTACLE_SAFETY_MARGIN:
+          safe_all_points.append(point)
+
+  all_points = np.array(safe_all_points)
+  tree = KDTree(all_points) 
+
+  max_inter_node_distance = max_velocity * max_turn_duration
+  logging.debug(f"Starting waypoint computation at {initial_position}")
+  logging.debug(f"Max inter-node distance: {max_inter_node_distance}")
+
+  visited = set()
+  while not queue.empty():
+      _, current_node = queue.get()
+      visited.add(position_key(current_node.position))
+
+      # Check if we reached the seek position.
+      if np.linalg.norm(current_node.position - seek_position) < winning_radius: # Actually need to let it run longer for A*
+          # Add final node, at exact seek position 
+          final_node = Node(position=seek_position, parent=current_node, g=current_node.g)
+          current_node = final_node
+          path = []
+          while current_node is not None:
+              path.append(current_node.position)
+              current_node = current_node.parent
+          return np.array(path[::-1])  # Reverse the path
+
+      indices = tree.query_ball_point(current_node.position, r=max_inter_node_distance)
+      for i in indices:
+          point = all_points[i]
+          if position_key(point) in visited:
+            continue
+          distance = np.linalg.norm(current_node.position - point)
+          new_g = current_node.g + distance + MOVE_PENALTY
+          new_node = Node(position=point, parent=current_node, g=new_g)
+          h = np.linalg.norm(point - seek_position)
+          f = new_g + h
+          queue.put((f, new_node))
+
+  return np.array([])  # No path found
+
 
 if __name__ == "__main__":
   # TODO: put this stuff in an argparse
-  map_file = Path("simulation/worlds/easy.sdf")
+  map_file = Path("simulation/worlds/dust2.sdf")
   logging.info(f"Reading map file: {map_file}")
   output_dir = Path("output")
   headless = False
@@ -241,12 +371,28 @@ if __name__ == "__main__":
   inside_mask = combined_mesh.contains(sample_points)
   inside_points = sample_points[inside_mask]
   logging.info(f"Found {len(inside_points)} points in obstacles ({len(inside_points) / len(sample_points) * 100:.2f}% of total)")
+      
+  waypoints = compute_waypoints(
+      occluded_points=occluded_points,
+      obstacle_points=inside_points,
+      initial_position=np.array([0, 0, 0]),
+      seek_position=world.seeker_pose[:3],
+      winning_radius=1.0,
+      iteration_limit=100,
+      max_velocity=1.0,
+      max_turn_duration=10.0,
+  )
+
+  logging.info(f"Computed {len(waypoints)} waypoints")
+  logging.debug(f"Waypoints: {waypoints}")
+
 
   if not headless:
-      visualize_occlusion_map(
+      visualize_map(
           visible_points=visible_points, 
           occluded_points=occluded_points, 
-          inside_points=inside_points)
+          inside_points=inside_points,
+          waypoints=waypoints,)
 
 
   
