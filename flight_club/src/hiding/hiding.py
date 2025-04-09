@@ -19,7 +19,7 @@ import multiprocessing as mp
 
 GLOBAL_MESH = None
 
-INITIAL_POSITION = np.array([10, -15.0, 1])
+INITIAL_POSITION = np.array([0, 0 , 1])
 SEEKER_OFFSET = np.array([0.0, 0.0, 1.5, 0.0, 0.0, 0.0])
 OBSTACLE_SAFETY_MARGIN = 2.0
 MIN_EDGE_DISTANCE = 0.5 # play with this to encourage bigger jumps
@@ -495,6 +495,9 @@ if __name__ == "__main__":
   logging.info(f"Computed {len(occluded_points)} occluded points ({len(occluded_points) / len(sample_points) * 100:.2f}% of total)")
   logging.debug(f"Occluded points: {occluded_points}")
 
+  np.save(output_dir / "visible_points.npy", visible_points)
+  np.save(output_dir / "occluded_points.npy", occluded_points)
+
   # Sample randomly occluded poiints with downsampling factor
   num_occluded_points = int(len(occluded_points) / DOWNSAMPLING_FACTOR)
   occluded_indices = np.random.choice(len(occluded_points), num_occluded_points, replace=False)
@@ -534,7 +537,6 @@ if __name__ == "__main__":
 
   logging.info(f"Computed {len(waypoints)} waypoints")
   logging.debug(f"Waypoints: {waypoints}")
-
   np.save(output_dir / "waypoints.npy", waypoints)
 
   if not headless:
