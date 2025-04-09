@@ -21,11 +21,11 @@ SEEKER_OFFSET = np.array([0.0, 0.0, 1.5, 0.0, 0.0, 0.0])
 OBSTACLE_SAFETY_MARGIN = 1.0
 
 
-NUM_SAMPLES_HORIZONTAL = 80
-NUM_SAMPLES_VERTICAL = 30
+# NUM_SAMPLES_HORIZONTAL = 80
+# NUM_SAMPLES_VERTICAL = 30
 
-# NUM_SAMPLES_HORIZONTAL = 50
-# NUM_SAMPLES_VERTICAL = 10
+NUM_SAMPLES_HORIZONTAL = 30
+NUM_SAMPLES_VERTICAL = 10
 
 MOVE_PENALTY = 5.0 # penalise trajectory with too many waypoints
 
@@ -405,6 +405,8 @@ if __name__ == "__main__":
 
   logging.info(f"Computed {len(waypoints)} waypoints")
   logging.debug(f"Waypoints: {waypoints}")
+
+  np.save(output_dir / "waypoints.npy", waypoints)
 
   if not headless:
       visualize_map(
