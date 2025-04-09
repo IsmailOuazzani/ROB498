@@ -20,6 +20,13 @@ from scipy.spatial import KDTree
 SEEKER_OFFSET = np.array([0.0, 0.0, 1.5, 0.0, 0.0, 0.0])
 OBSTACLE_SAFETY_MARGIN = 1.0
 
+MAP_X_MIN = -40
+MAP_X_MAX = 40
+MAP_Y_MIN = -40
+MAP_Y_MAX = 40
+MAP_Z_MIN = 0
+MAP_Z_MAX = 15
+
 
 # NUM_SAMPLES_HORIZONTAL = 80
 # NUM_SAMPLES_VERTICAL = 30
@@ -160,6 +167,7 @@ def compute_occlusion_map(
 def visualize_map(
         visible_points: np.ndarray,
         occluded_points: np.ndarray,
+        goal_points: np.ndarray,
         inside_points: np.ndarray,
         show_visible: bool = False,
         waypoints: np.ndarray | None = None,
@@ -172,6 +180,10 @@ def visualize_map(
       occluded_points,
       colors=np.tile([0, 255, 0, 255], (len(occluded_points), 1))
   )
+  goal_pc = trimesh.points.PointCloud(
+      goal_points,
+      colors=np.tile([255, 20, 147, 255], (len(goal_points), 1))
+  )
   inside_pc = trimesh.points.PointCloud(
         inside_points,
         colors=np.tile([0, 0, 255, 255], (len(inside_points), 1))  # blue
@@ -181,7 +193,9 @@ def visualize_map(
   if show_visible:
     scene.add_geometry(visible_pc)
   scene.add_geometry(occluded_pc)
+  scene.add_geometry(goal_pc)
   scene.add_geometry(inside_pc)
+
 
   # Mark the camera position with a small sphere.
   camera_sphere = trimesh.creation.icosphere(radius=0.5)
@@ -366,11 +380,10 @@ if __name__ == "__main__":
       logging.error("Camera position is inside an obstacle. Aborting.")
       exit()
 
-
   # Map bounds
-  grid_x = np.linspace(-40, 40, NUM_SAMPLES_HORIZONTAL)
-  grid_y = np.linspace(-40, 40, NUM_SAMPLES_HORIZONTAL)
-  grid_z = np.linspace(0, 15, NUM_SAMPLES_VERTICAL)
+  grid_x = np.linspace(MAP_X_MIN, MAP_X_MAX, NUM_SAMPLES_HORIZONTAL)
+  grid_y = np.linspace(MAP_Y_MIN, MAP_Y_MAX, NUM_SAMPLES_HORIZONTAL)
+  grid_z = np.linspace(MAP_Z_MIN, MAP_Z_MAX, NUM_SAMPLES_VERTICAL)
   sample_points = np.array(np.meshgrid(grid_x, grid_y, grid_z)).T.reshape(-1, 3)
 
   visible_points, occluded_points = compute_occlusion_map(
@@ -391,7 +404,13 @@ if __name__ == "__main__":
       obstacle_points=inside_points,
       file_path=output_dir / "obstacle_points.ply",
   )
-      
+
+  border_y = np.linspace(MAP_Y_MIN, MAP_Y_MAX, NUM_SAMPLES_HORIZONTAL)
+  border_z = np.linspace(MAP_Z_MIN, MAP_Z_MAX, NUM_SAMPLES_VERTICAL)
+  B_y, B_z = np.meshgrid(border_y, border_z)
+  border_x = np.full(B_y.shape, world.seeker_pose[0])
+  goal_points = np.column_stack((border_x.ravel(), B_y.ravel(), B_z.ravel()))
+
   waypoints = compute_waypoints(
       occluded_points=occluded_points,
       obstacle_points=inside_points,
@@ -413,6 +432,7 @@ if __name__ == "__main__":
           visible_points=visible_points, 
           occluded_points=occluded_points, 
           inside_points=inside_points,
+          goal_points=goal_points,
           waypoints=waypoints,)
 
 
