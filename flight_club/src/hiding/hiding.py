@@ -14,11 +14,15 @@ from queue import PriorityQueue
 from dataclasses import dataclass
 
 from scipy.spatial import KDTree
+import multiprocessing as mp
 
 
+GLOBAL_MESH = None
 
+INITIAL_POSITION = np.array([10, -15.0, 1])
 SEEKER_OFFSET = np.array([0.0, 0.0, 1.5, 0.0, 0.0, 0.0])
-OBSTACLE_SAFETY_MARGIN = 1.0
+OBSTACLE_SAFETY_MARGIN = 2.0
+MIN_EDGE_DISTANCE = 0.5 # play with this to encourage bigger jumps
 
 MAP_X_MIN = -40
 MAP_X_MAX = 40
@@ -27,11 +31,15 @@ MAP_Y_MAX = 40
 MAP_Z_MIN = 0
 MAP_Z_MAX = 15
 
+MAX_VELOCITY = 1.0
+MAX_TURN_DURATION = 7.0
 
-NUM_SAMPLES_HORIZONTAL = 80
-NUM_SAMPLES_VERTICAL = 30
+DOWNSAMPLING_FACTOR = 2.0
 
-# NUM_SAMPLES_HORIZONTAL = 30
+NUM_SAMPLES_HORIZONTAL = 60
+NUM_SAMPLES_VERTICAL = 20
+
+# NUM_SAMPLES_HORIZONTAL = 50
 # NUM_SAMPLES_VERTICAL = 10
 
 
@@ -249,87 +257,195 @@ def save_map_ply(obstacle_points: np.ndarray, file_path: str | Path) -> None:
     with open(file_path, 'wb') as f:
         f.write(ply_data)
 
+
+############################
+# PARALLEL ADJACENCY BUILD
+############################
+def init_worker(mesh: trimesh.Trimesh):
+    """
+    Called once in each worker to set a global reference to the mesh.
+    """
+    global GLOBAL_MESH
+    GLOBAL_MESH = mesh
+
+
+def process_edge_chunk(
+    origins_chunk: np.ndarray,
+    directions_chunk: np.ndarray,
+    distances_chunk: np.ndarray,
+    edges_chunk: list[tuple[int, int]],
+    obstacle_safety_margin: float
+) -> list[tuple[int, int, float]]:
+    """
+    For each ray in this chunk, compute the distance to the first intersection.
+    Return a list of (i, j, dist) for edges that are FREE (not blocked).
+    """
+    global GLOBAL_MESH
+    locations, index_ray, _ = GLOBAL_MESH.ray.intersects_location( # TODO: find some faster way to do this
+        ray_origins=origins_chunk, 
+        ray_directions=directions_chunk, 
+        multiple_hits=False
+    )
+
+    # Initialize intersection distances
+    intersection_distances = np.full(len(origins_chunk), np.inf)
+    for loc, ray_idx in zip(locations, index_ray):
+        dist = np.linalg.norm(loc - origins_chunk[ray_idx])
+        intersection_distances[ray_idx] = dist
+
+    # Figure out which edges are NOT blocked
+    free_edges = []
+    for idx, (i, j) in enumerate(edges_chunk):
+        actual_dist = distances_chunk[idx]
+        # If intersection is closer than the endpoint minus a safety margin => blocked
+        if intersection_distances[idx] < actual_dist - obstacle_safety_margin:
+            continue
+        # If we get here => free edge
+        free_edges.append((i, j, actual_dist))
+
+    return free_edges
+
+
+############################
+# PATH PLANNING
+############################
+
 def compute_waypoints(
-        occluded_points: np.ndarray,
-        obstacle_points: np.ndarray,
-        initial_position: np.ndarray,
-        goal_points: np.ndarray,
-        iteration_limit: int,
-        max_velocity: float,
-        max_turn_duration: float,
+    occluded_points: np.ndarray,
+    obstacle_points: np.ndarray,
+    combined_mesh: trimesh.Trimesh,
+    initial_position: np.ndarray,
+    goal_points: np.ndarray,
+    iteration_limit: int,
+    max_velocity: float,
+    max_turn_duration: float,
 ) -> np.ndarray:
-  """Compute waypoints to navigate to the seek position while remaining hidden using A*.
-  """
-  
-  all_points_with_obstacles = np.vstack([initial_position, occluded_points, goal_points])
-  obstacle_tree = KDTree(obstacle_points)
-  safe_all_points = []
-  for point in all_points_with_obstacles:
-      distance, _ = obstacle_tree.query(point)
-      if distance > OBSTACLE_SAFETY_MARGIN:
-          safe_all_points.append(point)
-  all_points = np.array(safe_all_points)
-  tree = KDTree(all_points) 
+    """
+    Compute a path of waypoints using A*, ensuring we remain within occluded space
+    (or at least away from obstacles) as we navigate from initial_position to any
+    point in goal_points.
+    """
 
-  def cost_to_go(point: np.ndarray, goal_points: np.ndarray) -> float:
-      return np.linalg.norm(point - goal_points, axis=1).min()
+    # We can load the mesh globally (main process)
+    global GLOBAL_MESH
+    GLOBAL_MESH = combined_mesh
 
-  max_inter_node_distance = max_velocity * max_turn_duration
+    # Build the set of "safe" points
+    all_points_with_obstacles = np.vstack([initial_position, occluded_points, goal_points])
+    obstacle_tree = KDTree(obstacle_points)
+    safe_all_points = []
+    for pt in all_points_with_obstacles:
+        dist, _ = obstacle_tree.query(pt)
+        if dist > OBSTACLE_SAFETY_MARGIN:
+            safe_all_points.append(pt)
+    all_points = np.array(safe_all_points)
+    tree = KDTree(all_points)
 
-  adjecency_mat = np.zeros((len(all_points), len(all_points)), dtype=float)
-  for i, point in enumerate(all_points):
-      indices = tree.query_ball_point(point, r=max_inter_node_distance)
-      for j in indices:
-          if i != j:
-              distance = np.linalg.norm(point - all_points[j])
-              adjecency_mat[i, j] = distance
-              adjecency_mat[j, i] = distance
+    def cost_to_go(point: np.ndarray, goal_pts: np.ndarray) -> float:
+        return np.linalg.norm(point - goal_pts, axis=1).min()
 
-  goal_mat = np.zeros(len(all_points), dtype=bool)
-  for i, point in enumerate(all_points):
-      if np.any(np.all(point == goal_points, axis=1)):
-          goal_mat[i] = True
+    max_inter_node_distance = max_velocity * max_turn_duration
+    logging.debug(f"Building adjacency with max inter-node distance {max_inter_node_distance} for {len(all_points)} pts")
 
-  visited = np.zeros((len(all_points), 1), dtype=bool)
-  cost_to_come = np.full((len(all_points), 1), np.inf)
-  parents = np.full((len(all_points), 1), -1)
+    # Collect edges
+    edges = []
+    origins_list = []
+    directions_list = []
+    distances_list = []
 
-  queue = PriorityQueue()
+    for i, pt_i in enumerate(all_points):
+        neighbor_indices = tree.query_ball_point(pt_i, r=max_inter_node_distance)
+        for j in neighbor_indices:
+            if i == j:
+                continue
+            direction = all_points[j] - pt_i
+            dist = np.linalg.norm(direction)
+            if dist < MIN_EDGE_DISTANCE:
+                continue
+            direction_norm = direction / dist
+            edges.append((i, j))
+            origins_list.append(pt_i)
+            directions_list.append(direction_norm)
+            distances_list.append(dist)
 
-  # Root node
-  cost_to_come[0] = 0
-  queue.put((cost_to_go(initial_position, goal_points), 0))
+    origins_arr = np.array(origins_list)
+    directions_arr = np.array(directions_list)
+    distances_arr = np.array(distances_list)
 
-  iter = 0
-  while not queue.empty():
-      if iter % 100 == 0:
-          logging.debug(f"Iteration: {iter}, Queue size: {queue.qsize()}")
+    #########################################
+    # PARALLEL RAY INTERSECTIONS
+    #########################################
+    num_cores = 4  # or mp.cpu_count() for all
+    chunk_size = len(edges) // num_cores + 1
 
-      _, current_index = queue.get()
-      if visited[current_index]:
-          continue
-      visited[current_index] = True
+    # Split into chunks
+    chunks = []
+    for idx in range(0, len(edges), chunk_size):
+        origins_chunk = origins_arr[idx : idx + chunk_size]
+        directions_chunk = directions_arr[idx : idx + chunk_size]
+        distances_chunk = distances_arr[idx : idx + chunk_size]
+        edges_chunk = edges[idx : idx + chunk_size]
+        chunks.append((origins_chunk, directions_chunk, distances_chunk, edges_chunk, OBSTACLE_SAFETY_MARGIN))
 
-      # Check if we reached the seek position by checking if the current point is one of the goal points.
-      if goal_mat[current_index]:
-          path = []
-          while current_index != -1:
-              path.append(all_points[current_index])
-              current_index = int(parents[current_index])
-          return np.array(path[::-1])  # Reverse the path
+    with mp.Pool(processes=num_cores, initializer=init_worker, initargs=(combined_mesh,)) as pool:
+        results = pool.starmap(process_edge_chunk, chunks)
 
-      for neighbor in np.where(adjecency_mat[current_index] > 0)[0]:
-          if visited[neighbor]:
-              continue
-          new_cost_to_come = cost_to_come[current_index] + adjecency_mat[current_index, neighbor]
-          if new_cost_to_come < cost_to_come[neighbor]:
-              cost_to_come[neighbor] = new_cost_to_come
-              parents[neighbor] = current_index
-              f = cost_to_come[neighbor] + cost_to_go(all_points[neighbor], goal_points)
-              queue.put((f, neighbor))
+    free_edges = [item for sublist in results for item in sublist]
 
-      iter += 1
+    adjacency = np.zeros((len(all_points), len(all_points)), dtype=float)
+    for (i, j, dist) in free_edges:
+        adjacency[i, j] = dist
+        adjacency[j, i] = dist
 
+    goal_mat = np.zeros(len(all_points), dtype=bool)
+    for idx, pt in enumerate(all_points):
+        if np.any(np.all(pt == goal_points, axis=1)):
+            goal_mat[idx] = True
+
+    visited = np.zeros((len(all_points), 1), dtype=bool)
+    cost_to_come = np.full((len(all_points), 1), np.inf)
+    parents = np.full((len(all_points), 1), -1)
+
+    queue = PriorityQueue()
+    cost_to_come[0] = 0
+    queue.put((cost_to_go(initial_position, goal_points), 0))
+
+    logging.debug(f"Starting A* with {len(all_points)} points")
+
+    iteration = 0
+    while not queue.empty() and iteration < iteration_limit:
+        if iteration % 100 == 0:
+            logging.debug(f"Iteration {iteration}, queue size: {queue.qsize()}")
+
+        _, current_idx = queue.get()
+        if visited[current_idx]:
+            iteration += 1
+            continue
+        visited[current_idx] = True
+
+        # Check if this is a goal
+        if goal_mat[current_idx]:
+            # Reconstruct path
+            path = []
+            while current_idx != -1:
+                path.append(all_points[current_idx])
+                current_idx = int(parents[current_idx])
+            return np.array(path[::-1])  # Reverse
+        # Expand neighbors
+        for neighbor in np.where(adjacency[current_idx] > 0)[0]:
+            if visited[neighbor]:
+                continue
+            new_cost = cost_to_come[current_idx] + adjacency[current_idx, neighbor]
+            if new_cost < cost_to_come[neighbor]:
+                cost_to_come[neighbor] = new_cost
+                parents[neighbor] = current_idx
+                fval = cost_to_come[neighbor] + cost_to_go(all_points[neighbor], goal_points)
+                queue.put((fval, neighbor))
+
+        iteration += 1
+
+    # If we exit, no path found (or iteration limit reached)
+    return np.array([initial_position])
 
 
 if __name__ == "__main__":
@@ -379,6 +495,12 @@ if __name__ == "__main__":
   logging.info(f"Computed {len(occluded_points)} occluded points ({len(occluded_points) / len(sample_points) * 100:.2f}% of total)")
   logging.debug(f"Occluded points: {occluded_points}")
 
+  # Sample randomly occluded poiints with downsampling factor
+  num_occluded_points = int(len(occluded_points) / DOWNSAMPLING_FACTOR)
+  occluded_indices = np.random.choice(len(occluded_points), num_occluded_points, replace=False)
+  occluded_points = occluded_points[occluded_indices]
+  logging.info(f"Downsampled occluded points to {num_occluded_points} points")
+
   inside_mask = combined_mesh.contains(sample_points)
   inside_points = sample_points[inside_mask]
   logging.info(f"Found {len(inside_points)} points in obstacles ({len(inside_points) / len(sample_points) * 100:.2f}% of total)")
@@ -402,11 +524,12 @@ if __name__ == "__main__":
   waypoints = compute_waypoints(
       occluded_points=occluded_points,
       obstacle_points=inside_points,
-      initial_position=np.array([0, 0, 0]),
+      combined_mesh=combined_mesh,
+      initial_position=INITIAL_POSITION,
+      iteration_limit=10000, 
       goal_points=goal_points,
-      iteration_limit=100,
-      max_velocity=1.0,
-      max_turn_duration=10.0,
+      max_velocity=MAX_VELOCITY,
+      max_turn_duration=MAX_TURN_DURATION,
   )
 
   logging.info(f"Computed {len(waypoints)} waypoints")
