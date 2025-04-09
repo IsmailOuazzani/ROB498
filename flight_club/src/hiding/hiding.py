@@ -28,13 +28,11 @@ MAP_Z_MIN = 0
 MAP_Z_MAX = 15
 
 
-# NUM_SAMPLES_HORIZONTAL = 80
-# NUM_SAMPLES_VERTICAL = 30
+NUM_SAMPLES_HORIZONTAL = 80
+NUM_SAMPLES_VERTICAL = 30
 
-NUM_SAMPLES_HORIZONTAL = 30
-NUM_SAMPLES_VERTICAL = 10
-
-MOVE_PENALTY = 5.0 # penalise trajectory with too many waypoints
+# NUM_SAMPLES_HORIZONTAL = 30
+# NUM_SAMPLES_VERTICAL = 10
 
 
 logging.basicConfig(
@@ -251,94 +249,86 @@ def save_map_ply(obstacle_points: np.ndarray, file_path: str | Path) -> None:
     with open(file_path, 'wb') as f:
         f.write(ply_data)
 
-@dataclass
-class Node:
-    position: np.ndarray
-    parent: Node = None
-    g: float = 0.0
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Node):
-            return NotImplemented
-        return np.array_equal(self.position, other.position)
-
-    def __lt__(self, other: Node) -> bool:
-        return self.g < other.g
-    
-    def __hash__(self) -> int:
-        return hash(tuple(self.position))
-    
-
 def compute_waypoints(
         occluded_points: np.ndarray,
         obstacle_points: np.ndarray,
         initial_position: np.ndarray,
         goal_points: np.ndarray,
-        winning_radius: float,
         iteration_limit: int,
         max_velocity: float,
         max_turn_duration: float,
 ) -> np.ndarray:
-  """Compute waypoints to navigate to the seek position while remaining hidden.
+  """Compute waypoints to navigate to the seek position while remaining hidden using A*.
   """
-
-  # Use A* to compute the shortest path to the seek position. 
-
-  def position_key(pos, precision=2):
-    return tuple(np.round(pos, decimals=precision))
-
-  queue = PriorityQueue()
-  start_node = Node(position=initial_position)
-  queue.put((0, start_node))
-
-  all_points_with_obstacles = np.vstack([occluded_points, goal_points])
   
+  all_points_with_obstacles = np.vstack([initial_position, occluded_points, goal_points])
   obstacle_tree = KDTree(obstacle_points)
   safe_all_points = []
   for point in all_points_with_obstacles:
       distance, _ = obstacle_tree.query(point)
       if distance > OBSTACLE_SAFETY_MARGIN:
           safe_all_points.append(point)
-
   all_points = np.array(safe_all_points)
   tree = KDTree(all_points) 
 
-  max_inter_node_distance = max_velocity * max_turn_duration
-  logging.debug(f"Starting waypoint computation at {initial_position}")
-  logging.debug(f"Max inter-node distance: {max_inter_node_distance}")
+  def cost_to_go(point: np.ndarray, goal_points: np.ndarray) -> float:
+      return np.linalg.norm(point - goal_points, axis=1).min()
 
-  visited = set()
+  max_inter_node_distance = max_velocity * max_turn_duration
+
+  adjecency_mat = np.zeros((len(all_points), len(all_points)), dtype=float)
+  for i, point in enumerate(all_points):
+      indices = tree.query_ball_point(point, r=max_inter_node_distance)
+      for j in indices:
+          if i != j:
+              distance = np.linalg.norm(point - all_points[j])
+              adjecency_mat[i, j] = distance
+              adjecency_mat[j, i] = distance
+
+  goal_mat = np.zeros(len(all_points), dtype=bool)
+  for i, point in enumerate(all_points):
+      if np.any(np.all(point == goal_points, axis=1)):
+          goal_mat[i] = True
+
+  visited = np.zeros((len(all_points), 1), dtype=bool)
+  cost_to_come = np.full((len(all_points), 1), np.inf)
+  parents = np.full((len(all_points), 1), -1)
+
+  queue = PriorityQueue()
+
+  # Root node
+  cost_to_come[0] = 0
+  queue.put((cost_to_go(initial_position, goal_points), 0))
+
   iter = 0
   while not queue.empty():
-      if iter % 1000 == 0:
-          logging.debug(f"Queue size: {queue.qsize()} | Visited size: {len(visited)}")
+      if iter % 100 == 0:
+          logging.debug(f"Iteration: {iter}, Queue size: {queue.qsize()}")
 
-      _, current_node = queue.get()
-      visited.add(position_key(current_node.position))
+      _, current_index = queue.get()
+      if visited[current_index]:
+          continue
+      visited[current_index] = True
+
       # Check if we reached the seek position by checking if the current point is one of the goal points.
-      if np.any(np.all(current_node.position == goal_points, axis=1)):
+      if goal_mat[current_index]:
           path = []
-          while current_node is not None:
-              path.append(current_node.position)
-              current_node = current_node.parent
+          while current_index != -1:
+              path.append(all_points[current_index])
+              current_index = int(parents[current_index])
           return np.array(path[::-1])  # Reverse the path
 
-      indices = tree.query_ball_point(current_node.position, r=max_inter_node_distance)
-      for i in indices:
-          point = all_points[i]
-          if position_key(point) in visited:
-            continue
-          distance = np.linalg.norm(current_node.position - point)
-          # new_g = current_node.g + distance + MOVE_PENALTY
-          new_g = current_node.g + distance
-          new_node = Node(position=point, parent=current_node, g=new_g)
-          #TODO try penalizing h more than g to encourage going for further points first
-          h = np.linalg.norm(point - goal_points, axis=1).min() 
-          f = new_g + h
-          queue.put((f, new_node))
-      iter += 1
-  return np.array([])  # No path found
+      for neighbor in np.where(adjecency_mat[current_index] > 0)[0]:
+          if visited[neighbor]:
+              continue
+          new_cost_to_come = cost_to_come[current_index] + adjecency_mat[current_index, neighbor]
+          if new_cost_to_come < cost_to_come[neighbor]:
+              cost_to_come[neighbor] = new_cost_to_come
+              parents[neighbor] = current_index
+              f = cost_to_come[neighbor] + cost_to_go(all_points[neighbor], goal_points)
+              queue.put((f, neighbor))
 
+      iter += 1
 
 
 
@@ -414,7 +404,6 @@ if __name__ == "__main__":
       obstacle_points=inside_points,
       initial_position=np.array([0, 0, 0]),
       goal_points=goal_points,
-      winning_radius=1.0,
       iteration_limit=100,
       max_velocity=1.0,
       max_turn_duration=10.0,
