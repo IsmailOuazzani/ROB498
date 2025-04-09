@@ -273,7 +273,7 @@ def compute_waypoints(
         occluded_points: np.ndarray,
         obstacle_points: np.ndarray,
         initial_position: np.ndarray,
-        seek_position: np.ndarray,
+        goal_points: np.ndarray,
         winning_radius: float,
         iteration_limit: int,
         max_velocity: float,
@@ -291,15 +291,6 @@ def compute_waypoints(
   start_node = Node(position=initial_position)
   queue.put((0, start_node))
 
-  # create all_points, indicating points ok to visit
-  # this starts with all occluded points
-  # add a ball of size winning radius around the seek position
-  num_goal_samples = 20
-  goal_angles = np.linspace(0, 2 * np.pi, num_goal_samples, endpoint=False)
-  goal_points = np.array([
-        seek_position + winning_radius * np.array([np.cos(angle), np.sin(angle), 0])
-        for angle in goal_angles
-    ])
   all_points_with_obstacles = np.vstack([occluded_points, goal_points])
   
   obstacle_tree = KDTree(obstacle_points)
@@ -317,15 +308,15 @@ def compute_waypoints(
   logging.debug(f"Max inter-node distance: {max_inter_node_distance}")
 
   visited = set()
+  iter = 0
   while not queue.empty():
+      if iter % 1000 == 0:
+          logging.debug(f"Queue size: {queue.qsize()} | Visited size: {len(visited)}")
+
       _, current_node = queue.get()
       visited.add(position_key(current_node.position))
-
-      # Check if we reached the seek position.
-      if np.linalg.norm(current_node.position - seek_position) < winning_radius: # Actually need to let it run longer for A*
-          # Add final node, at exact seek position 
-          final_node = Node(position=seek_position, parent=current_node, g=current_node.g)
-          current_node = final_node
+      # Check if we reached the seek position by checking if the current point is one of the goal points.
+      if np.any(np.all(current_node.position == goal_points, axis=1)):
           path = []
           while current_node is not None:
               path.append(current_node.position)
@@ -338,13 +329,17 @@ def compute_waypoints(
           if position_key(point) in visited:
             continue
           distance = np.linalg.norm(current_node.position - point)
-          new_g = current_node.g + distance + MOVE_PENALTY
+          # new_g = current_node.g + distance + MOVE_PENALTY
+          new_g = current_node.g + distance
           new_node = Node(position=point, parent=current_node, g=new_g)
-          h = np.linalg.norm(point - seek_position) #TODO try penalizing h more than g to encourage going for further points first
+          #TODO try penalizing h more than g to encourage going for further points first
+          h = np.linalg.norm(point - goal_points, axis=1).min() 
           f = new_g + h
           queue.put((f, new_node))
-
+      iter += 1
   return np.array([])  # No path found
+
+
 
 
 if __name__ == "__main__":
@@ -394,8 +389,6 @@ if __name__ == "__main__":
   logging.info(f"Computed {len(occluded_points)} occluded points ({len(occluded_points) / len(sample_points) * 100:.2f}% of total)")
   logging.debug(f"Occluded points: {occluded_points}")
 
-  # TODO: save occlued points to file
-
   inside_mask = combined_mesh.contains(sample_points)
   inside_points = sample_points[inside_mask]
   logging.info(f"Found {len(inside_points)} points in obstacles ({len(inside_points) / len(sample_points) * 100:.2f}% of total)")
@@ -405,17 +398,22 @@ if __name__ == "__main__":
       file_path=output_dir / "obstacle_points.ply",
   )
 
+  
+
   border_y = np.linspace(MAP_Y_MIN, MAP_Y_MAX, NUM_SAMPLES_HORIZONTAL)
   border_z = np.linspace(MAP_Z_MIN, MAP_Z_MAX, NUM_SAMPLES_VERTICAL)
   B_y, B_z = np.meshgrid(border_y, border_z)
   border_x = np.full(B_y.shape, world.seeker_pose[0])
   goal_points = np.column_stack((border_x.ravel(), B_y.ravel(), B_z.ravel()))
 
+
+  logging.debug(f"Generated {len(goal_points)} goal points")
+
   waypoints = compute_waypoints(
       occluded_points=occluded_points,
       obstacle_points=inside_points,
       initial_position=np.array([0, 0, 0]),
-      seek_position=world.seeker_pose[:3],
+      goal_points=goal_points,
       winning_radius=1.0,
       iteration_limit=100,
       max_velocity=1.0,
