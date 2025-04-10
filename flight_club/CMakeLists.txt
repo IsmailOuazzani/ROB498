@@ -21,6 +21,7 @@ install(PROGRAMS
   src/exercise3/exercise3.py
   src/waypoint_publisher.py
   src/vicon.py
+  src/game_loop.py
   src/planner.py
   src/velocity_control.py
   src/visualizer.py

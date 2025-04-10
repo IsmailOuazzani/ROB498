@@ -36,11 +36,7 @@
     <!-- Cylinder 1 -->
     <model name="cylinder1">
       <static>true</static>
-<<<<<<< HEAD
-      <pose>-12 2 2.5 0 0 0</pose>
-=======
       <pose>-25 5 2.5 0 0 0</pose>
->>>>>>> 6fbeedb (occlusion visualiser)
       <link name="link">
         <collision name="collision">
           <geometry>
@@ -70,11 +66,7 @@
     <!-- Cylinder 2 -->
     <model name="cylinder2">
       <static>true</static>
-<<<<<<< HEAD
-      <pose>-8 -2.5729 2.5 0 0 0</pose>
-=======
       <pose>-8 -8 2.5 0 0 0</pose>
->>>>>>> 6fbeedb (occlusion visualiser)
       <link name="link">
         <collision name="collision">
           <geometry>

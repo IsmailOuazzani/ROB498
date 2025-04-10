@@ -45,8 +45,6 @@ class Planner(Node):
         self.pose = msg
 
     def callback_waypoints(self, msg):
-        if self.waypoint_received:
-            return
         self.get_logger().info('Received waypoints')
         self.waypoint_received = True
         if self.pose is None:
@@ -56,6 +54,7 @@ class Planner(Node):
         for pose in msg.poses:
             pos = np.array([pose.position.x, pose.position.y, pose.position.z])
             self.waypoints = np.vstack((self.waypoints, pos))
+        self.get_logger().info(f'Waypoints: {self.waypoints}')
         self.get_logger().info(f'Starting to plan')
         # plan the trajectory
         X0_no_tn, tf, N = initial_guess(self.waypoints)

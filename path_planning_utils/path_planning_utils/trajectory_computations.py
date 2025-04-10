@@ -88,21 +88,20 @@ def compute_all_trajectories(points, velocity_df, max_acc, min_acc, max_vel, min
         prediction_horizon = len(points)
         
     points_to_inspect = points[0:prediction_horizon]
-    for i in range(prediction_horizon):
+    print("points to inspect: ", points_to_inspect)
+    print(prediction_horizon)
+    for i in range(prediction_horizon-1):
+        print(i)
         start_vel = velocity_df[i]
-        if i == len(points) - 1:
-            end_point = 0
-            end_vel = velocity_df[0]
-        else:
-            end_point = i+1
-            end_vel = velocity_df[i + 1]
-        trajectories, dict_res = compute_trajectory_set(points, max_acc, min_acc, max_vel, min_vel, start_vel, end_vel, dict_res, i, end_point, prediction_horizon)
+        end_point = i+1
+        end_vel = velocity_df[i + 1]
+        trajectories, dict_res = compute_trajectory_set(points_to_inspect, max_acc, min_acc, max_vel, min_vel, start_vel, end_vel, dict_res, i, end_point, prediction_horizon-1)
         results.extend(trajectories)
-
-    if prediction_horizon == len(points):
-        cost, shortest = shortest_path(dict_res, '0', '0_f')
-    else:
-        cost, shortest = shortest_path(dict_res, '0', f'{prediction_horizon}_f')
+    print("dict_res: ", dict_res)
+    # if prediction_horizon == len(points):
+    #     cost, shortest = shortest_path(dict_res, '0', '0_f')
+    # else:
+    cost, shortest = shortest_path(dict_res, '0', f'{prediction_horizon-1}_f')
     return results, dict_res, shortest
 
 def compute_trajectory_set_multi_pose(dict_poses, start_level, end_level, start_node, end_node,  a_max, a_min, v_max, v_min, starting_velocity_list, ending_velocity_list, result_dict, prediction_horizon):

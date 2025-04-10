@@ -32,7 +32,8 @@ def initial_guess(points,  position_noise=0, velocity_noise=0, acceleration_nois
     vertex_angle_deg = params['vertex_angle_deg']
     
     max_vel_mag = np.linalg.norm(max_vel)
-    velocity_df = compute_velocities_in_cone_3d(points, 0, max_vel_mag, vertex_angle_deg=vertex_angle_deg, magnitude_step=magnitude_step, angle_step=angle_step, loop=True, prediction_horizon=len(points))
+    velocity_df = compute_velocities_in_cone_3d(points, 0, max_vel_mag, vertex_angle_deg=vertex_angle_deg, magnitude_step=magnitude_step, angle_step=angle_step, loop=False, prediction_horizon=len(points))
+    print(f"velocity_df: {velocity_df}")
     # compute velocity df
     results, dict_res, shortest = compute_all_trajectories(points, velocity_df, max_acc, min_acc, max_vel, min_vel, prediction_horizon=None)
     tf = compute_tf(shortest, dict_res)
@@ -112,9 +113,10 @@ def compute_Ns(shortest, dict_res, N):
 
 
 if __name__ == '__main__':
-    points = [[0.2, 0.2, 0.2], [1, 1, 4], [2, -3, 2   ], [3, 3, 3]]
-    height = 1
-    points = [[3*(1-math.cos(t)), 3*(math.sin(t)), height] for t in np.linspace(0, 2*np.pi, 6)]
+    points = [[0.2, 0.2, 0.2], [1, 1, 4]]
+    # points.append(points[0])
+    # height = 1
+    # points = [[3*(1-math.cos(t)), 3*(math.sin(t)), height] for t in np.linspace(0, 2*np.pi, 6)]
     X0_no_tn, tf, N = initial_guess(points)
     # combine the results
     X0 = [tf]

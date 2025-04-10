@@ -104,5 +104,6 @@ ros2 service call /rob498_drone_06/comm/land std_srvs/srv/Trigger
 To launch the simulation in a custom world:
 ```
 export PX4_SITL_WORLD=/src/ros_ws/src/drone_packages/simulation/worlds/easy.sdf
+cd PX4-Autopilot/
 make px4_sitl gazebo-classic
 ```

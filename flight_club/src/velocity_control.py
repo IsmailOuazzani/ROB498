@@ -12,8 +12,11 @@ import logging
 import time
 import math
 import numpy as np
+import matplotlib.pyplot as plt
+
 from path_planning_utils.path_generation import initial_guess
 from path_planning_utils.plotting import decompose_X, plan_vs_execute
+from flight_club.tracker import TargetTrackerPath
 
 
 logger = logging.getLogger(__name__)
@@ -40,7 +43,7 @@ class CommNode(Node):
         self.state_sub = self.create_subscription(State, '/mavros/state', self.state_callback, 10)
         self.waypoint_received = False
         self.trajectory_ended = False
-        self.vel_control = False
+        self.vel_control = True
         
         self.pose = PoseStamped()
 
@@ -85,8 +88,6 @@ class CommNode(Node):
             self.target_tracker = TargetTrackerPath(self, xyz)
 
     def waypoints_callback(self, msg):
-        if self.waypoint_received:
-            return
         self.get_logger().info('Received plan')
         self.waypoint_received = True
         N = msg.n_points
@@ -163,14 +164,20 @@ class CommNode(Node):
                         prev_z = self.trajectory_history[-1][3]
                         prev_t = self.trajectory_history[-1][0]
                         cur_vel = [(self.pose.pose.position.x - prev_x)/(t - prev_t), (self.pose.pose.position.y - prev_y)/(t - prev_t), (self.pose.pose.position.z - prev_z)/(t - prev_t)]
-                    else:
+                        cur_vel = [float(qs_dots[0]), float(qs_dots[1]), float(qs_dots[2])]
+                    # else:
                         
-                        cur_vel = [0, 0, 0]
-                    self.trajectory_history.append([t, self.pose.pose.position.x, self.pose.pose.position.y, self.pose.pose.position.z, cur_vel[0], cur_vel[1], cur_vel[2]])
-                    vel_topic.twist.linear.x = qs_dots[0]
-                    vel_topic.twist.linear.y = qs_dots[1]
-                    vel_topic.twist.linear.z = qs_dots[2]
-                    self.vel_pub.publish(vel_topic)
+                    #     cur_vel = [0.0, 0.0, 0.0]
+                    # self.get_logger().info(f'Current Velocity: {cur_vel}')
+                    
+
+                        vel_topic.twist.linear.x = cur_vel[0]
+                        vel_topic.twist.linear.y = cur_vel[1]
+                        vel_topic.twist.linear.z = cur_vel[2]
+                        # self.vel_pub.publish(vel_topic)
+
+                    self.trajectory_history.append([t, pose.pose.position.x, pose.pose.position.y, pose.pose.position.z, vel_topic.twist.linear.x, vel_topic.twist.linear.y, vel_topic.twist.linear.z])
+                    # self.update_plot()
                 elif not self.vel_control:
                     current_position = (
                         self.pose.pose.position.x,
@@ -237,73 +244,7 @@ class CommNode(Node):
         else:
             self.get_logger().warn("Arming service not available")
 
-class TargetTrackerPath():
-    def __init__(self, node, initial_xyz):
-        
-        self.qs = [initial_xyz]
-        self.qs_dots = [[0,0,0]]
-        self.N = 0
-        self.tf = 0
-        
-        self.node = node
 
-        self.cur_waypoint = 0
-        self.waiting = False
-        self.wait_time = 0.0 # seconds
-        self.wait_end = 0
-        self.allowed_pose_error = 0.2
-        self.get_logger = node.get_logger
-
-    def interpolate(self, t):
-        offset=0
-        self.dt = self.tf/self.N
-        if t > self.tf:
-            return self.qs[-1], None
-        # Interpolate
-        lower_index = int(t/self.dt)
-        lower_index_time = int(t/self.dt)
-        upper_index = lower_index_time + 1
-        if lower_index_time >= (self.N-1):
-            return self.qs[self.N-1], self.qs_dots[self.N-1]
-        if upper_index >= (self.N-1):
-            return self.qs[lower_index], self.qs_dots[lower_index]
-        lower_time = lower_index_time*self.dt
-        upper_time = (lower_index_time +1)*self.dt
-        
-        # look ahead to account for lagging controller, should be less for aggressive motions!!! TODO: adjust as needed
-        # velocity look ahead
-        lower_index = min(self.N-1, lower_index+int(0.2/self.dt))
-        upper_index = min(self.N-1, upper_index+int(0.2/self.dt))
-        q_dot = self.qs_dots[lower_index] + (self.qs_dots[upper_index] - self.qs_dots[lower_index])*(t - lower_time)/(upper_time - lower_time)
-
-        # position look ahead
-        lower_index = min(self.N-1, lower_index+int(0.4/self.dt))
-        upper_index = min(self.N-1, upper_index+int(0.4/self.dt))
-
-        q = self.qs[lower_index] + (self.qs[upper_index] - self.qs[lower_index])*(t - lower_time)/(upper_time - lower_time)
-        return q, q_dot
-    
-    def get_next_target(self, current_position):
-        """
-        Returns the next waypoint to travel to.
-        Moves to the next waypoint if within 20 cm of the current target.
-        """
-        if self.cur_waypoint >= len(self.qs):
-            return self.qs[-1]  # Stay at the last waypoint
-
-        target = self.qs[self.cur_waypoint]
-
-        # Compute distance to the current waypoint
-        distance = ((current_position[0] - target[0]) ** 2 +
-                    (current_position[1] - target[1]) ** 2 +
-                    (current_position[2] - target[2]) ** 2) ** 0.5
-
-        # If within 20 cm, move to the next waypoint
-        if distance < 0.2 and self.cur_waypoint < len(self.qs) - 1:
-            self.cur_waypoint += 1
-            target = self.qs[self.cur_waypoint]
-
-        return target 
 
 def main(args=None):
     rclpy.init(args=args)

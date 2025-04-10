@@ -1,12 +1,20 @@
 import os
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
+from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
+    # Declare a launch argument for the waypoint output folder
+    waypoint_output_folder_arg = DeclareLaunchArgument(
+        'waypoint_output_folder',
+        default_value='/src/ros_ws/src/drone_packages/output',  # Default folder for waypoints
+        description='Folder where waypoints are specified'
+    )
+
     # Get the share directories for the packages
     px4_autonomy_share = get_package_share_directory('px4_autonomy_modules')
     flight_club_share = get_package_share_directory('flight_club')
@@ -25,7 +33,8 @@ def generate_launch_description():
         package='flight_club',
         executable='waypoint_publisher.py',
         name='waypoint_pub_node',
-        output='screen'
+        output='screen',
+        parameters=[{'output_folder': LaunchConfiguration('waypoint_output_folder')}]
     )
 
     # Node to launch exercise2 from flight_club
@@ -37,10 +46,10 @@ def generate_launch_description():
     )
 
     # Node to launch exercise2 from flight_club
-    exercise3_node = Node(
+    executer_node = Node(
         package='flight_club',
-        executable='exercise3.py',
-        name='exercise3_node',
+        executable='velocity_control.py',
+        name='drone_node',
         output='screen'
     )
 
@@ -50,9 +59,17 @@ def generate_launch_description():
         name='planner_node',
         output='screen')
 
+    visualizer_node = Node(
+        package='flight_club',
+        executable='visualizer.py',
+        name='visualizer_node',
+        output='screen')
+
     return LaunchDescription([
+        waypoint_output_folder_arg,
         mavros_launch,
-        exercise3_node,
+        executer_node,
         planner_node,
-        wp_pub_node
-        ])
+        wp_pub_node,
+        visualizer_node
+    ])
