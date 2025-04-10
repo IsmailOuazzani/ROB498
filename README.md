@@ -20,12 +20,7 @@ ros2 launch realsense2_camera rs_launch.py
 ```
 
 ### Run the simulation
-Clone the PX4 source code in this repo:
-Build the Docker image once:
-```
-xhost +local:docker
-docker build -t base-capstone .
-```
+Clone the PX4 source code in this repo.
 Note: we need to implement a service to set to offboard mode for the simulation to work again (see TODO in exercise2.py)
 #### Exercise 2
 Run the Docker container:

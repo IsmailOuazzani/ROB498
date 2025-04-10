@@ -2,7 +2,9 @@ version: "3.8"
 
 services:
   rob498:
-    image: base-capstone 
+    build: 
+      context: .
+      dockerfile: Dockerfile
     container_name: rob498_container
     environment:
       - DISPLAY=${DISPLAY}

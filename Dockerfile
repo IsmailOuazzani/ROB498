@@ -10,7 +10,8 @@ RUN apt-get update -y &&\
 
 
 # Install Python dependencies
-RUN pip3 install numpy pyyaml scipy 
+COPY requirements.txt /tmp/requirements.txt
+RUN pip3 install -r /tmp/requirements.txt
 
 # Install PX4
 WORKDIR /src
