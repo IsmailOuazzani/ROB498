@@ -6,6 +6,7 @@ RUN apt-get update -y &&\
     python3-pip \
     python3-dev \
     python3-setuptools \
+    pulseaudio \
     python3-tk
 
 

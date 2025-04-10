@@ -2,7 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy, QoSHistoryPolicy
 from rclpy.clock import Clock
 
 from std_msgs.msg import Header
@@ -23,9 +23,11 @@ from argparse import ArgumentParser
 NODE_NAME = "game_loop_node"
 NODE_NAMESPACE = "flight_club"
 
+GOAL_TOLERANCE = 0.5  # meters
+
 
 class GameLoopNode(Node):
-  def __init__(self, map_name: str):
+  def __init__(self, map_name: str, goal_x: float):
     super().__init__(NODE_NAME, namespace=NODE_NAMESPACE)
 
     # Set up logging
@@ -47,6 +49,7 @@ class GameLoopNode(Node):
     # Initialize parameters
     self.map_name = map_name
     self.game_state = GameInfo.GAME_STATE_STOP
+    self.goal_x = goal_x
 
     # States we rotate through when pressing space (in the exact order):
     # BLIND_1 -> BLIND_2 -> BLIND_3 -> SEEKING -> (then back to) BLIND_INDEF
@@ -79,9 +82,27 @@ class GameLoopNode(Node):
         self.stop_game_callback
     )
 
+    # Subscribe to the pose topic
+    qos_profile = QoSProfile(
+        reliability=QoSReliabilityPolicy.BEST_EFFORT,
+        durability=QoSDurabilityPolicy.VOLATILE,
+        depth=2
+    )
+
+    self.pose_sub = self.create_subscription(
+        PoseStamped,
+        "/mavros/local_position/pose",
+        self.pose_callback,
+        qos_profile
+    )
+
     # Keyboard listener
     self.kb_listener_thread = threading.Thread(target=self._keyboard_listener, daemon=True)
     self.kb_listener_thread.start()
+
+
+    # Internals
+    self._victory_played = False
 
     self._logger.info("GameLoopNode initialized.")
 
@@ -110,6 +131,35 @@ class GameLoopNode(Node):
         self.cycle_index = 0
 
     self.publish_game_info(force_publish=True)
+
+  
+  def pose_callback(self, msg: PoseStamped):
+    """Callback whenever a new pose arrives from /mavros/local_position/pose."""
+    # Update last_pose_time for warning checks
+    self.last_pose_time = self.get_clock().now()
+    x,y,z = msg.pose.position.x, msg.pose.position.y, msg.pose.position.z
+
+    # 1) Check if something (placeholder if True) => if False => LOST
+    #    We'll invert the logic: if not True => become LOST
+    if not True:
+        self._logger.error("Game lost condition triggered!")
+        self.set_game_state(GameInfo.GAME_STATE_LOST)
+        return
+
+    # 2) Another placeholder if False => if True => WON
+    if abs(x - self.goal_x) < GOAL_TOLERANCE and self._victory_played == False:
+        self._logger.info("Game won condition triggered!")
+        self.set_game_state(GameInfo.GAME_STATE_WON)
+        # Play victory sound
+        def play_victory_sound():
+          try:
+              playsound("/src/ros_ws/src/drone_packages/victory.mp3")
+          except Exception as e:
+              self._logger.error(f"Error playing sound: {e}")
+
+        threading.Thread(target=play_victory_sound, daemon=True).start()
+        self._victory_played = True
+        return
 
 
   def _keyboard_listener(self):
@@ -168,6 +218,7 @@ if __name__ == "__main__":
   rclpy.init(args=sys.argv)
   node = GameLoopNode(
     map_name=parser.parse_args().map,
+    goal_x = -20.0, #TODO: replace with something conditional on the map, with the seeker
   )
 
   try:
