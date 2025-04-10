@@ -14,20 +14,33 @@ from queue import PriorityQueue
 from dataclasses import dataclass
 
 from scipy.spatial import KDTree
+import multiprocessing as mp
 
 
+GLOBAL_MESH = None
 
+INITIAL_POSITION = np.array([0, 0 , 1])
 SEEKER_OFFSET = np.array([0.0, 0.0, 1.5, 0.0, 0.0, 0.0])
-OBSTACLE_SAFETY_MARGIN = 1.0
+OBSTACLE_SAFETY_MARGIN = 2.0
+MIN_EDGE_DISTANCE = 0.5 # play with this to encourage bigger jumps
 
+MAP_X_MIN = -40
+MAP_X_MAX = 40
+MAP_Y_MIN = -40
+MAP_Y_MAX = 40
+MAP_Z_MIN = 0
+MAP_Z_MAX = 15
 
-# NUM_SAMPLES_HORIZONTAL = 80
-# NUM_SAMPLES_VERTICAL = 30
+MAX_VELOCITY = 1.0
+MAX_TURN_DURATION = 7.0
 
-NUM_SAMPLES_HORIZONTAL = 30
-NUM_SAMPLES_VERTICAL = 10
+DOWNSAMPLING_FACTOR = 2.0
 
-MOVE_PENALTY = 5.0 # penalise trajectory with too many waypoints
+NUM_SAMPLES_HORIZONTAL = 60
+NUM_SAMPLES_VERTICAL = 20
+
+# NUM_SAMPLES_HORIZONTAL = 50
+# NUM_SAMPLES_VERTICAL = 10
 
 
 logging.basicConfig(
@@ -160,6 +173,7 @@ def compute_occlusion_map(
 def visualize_map(
         visible_points: np.ndarray,
         occluded_points: np.ndarray,
+        goal_points: np.ndarray,
         inside_points: np.ndarray,
         show_visible: bool = False,
         waypoints: np.ndarray | None = None,
@@ -172,6 +186,10 @@ def visualize_map(
       occluded_points,
       colors=np.tile([0, 255, 0, 255], (len(occluded_points), 1))
   )
+  goal_pc = trimesh.points.PointCloud(
+      goal_points,
+      colors=np.tile([255, 20, 147, 255], (len(goal_points), 1))
+  )
   inside_pc = trimesh.points.PointCloud(
         inside_points,
         colors=np.tile([0, 0, 255, 255], (len(inside_points), 1))  # blue
@@ -181,7 +199,9 @@ def visualize_map(
   if show_visible:
     scene.add_geometry(visible_pc)
   scene.add_geometry(occluded_pc)
+  scene.add_geometry(goal_pc)
   scene.add_geometry(inside_pc)
+
 
   # Mark the camera position with a small sphere.
   camera_sphere = trimesh.creation.icosphere(radius=0.5)
@@ -237,100 +257,195 @@ def save_map_ply(obstacle_points: np.ndarray, file_path: str | Path) -> None:
     with open(file_path, 'wb') as f:
         f.write(ply_data)
 
-@dataclass
-class Node:
-    position: np.ndarray
-    parent: Node = None
-    g: float = 0.0
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Node):
-            return NotImplemented
-        return np.array_equal(self.position, other.position)
+############################
+# PARALLEL ADJACENCY BUILD
+############################
+def init_worker(mesh: trimesh.Trimesh):
+    """
+    Called once in each worker to set a global reference to the mesh.
+    """
+    global GLOBAL_MESH
+    GLOBAL_MESH = mesh
 
-    def __lt__(self, other: Node) -> bool:
-        return self.g < other.g
-    
-    def __hash__(self) -> int:
-        return hash(tuple(self.position))
-    
+
+def process_edge_chunk(
+    origins_chunk: np.ndarray,
+    directions_chunk: np.ndarray,
+    distances_chunk: np.ndarray,
+    edges_chunk: list[tuple[int, int]],
+    obstacle_safety_margin: float
+) -> list[tuple[int, int, float]]:
+    """
+    For each ray in this chunk, compute the distance to the first intersection.
+    Return a list of (i, j, dist) for edges that are FREE (not blocked).
+    """
+    global GLOBAL_MESH
+    locations, index_ray, _ = GLOBAL_MESH.ray.intersects_location( # TODO: find some faster way to do this
+        ray_origins=origins_chunk, 
+        ray_directions=directions_chunk, 
+        multiple_hits=False
+    )
+
+    # Initialize intersection distances
+    intersection_distances = np.full(len(origins_chunk), np.inf)
+    for loc, ray_idx in zip(locations, index_ray):
+        dist = np.linalg.norm(loc - origins_chunk[ray_idx])
+        intersection_distances[ray_idx] = dist
+
+    # Figure out which edges are NOT blocked
+    free_edges = []
+    for idx, (i, j) in enumerate(edges_chunk):
+        actual_dist = distances_chunk[idx]
+        # If intersection is closer than the endpoint minus a safety margin => blocked
+        if intersection_distances[idx] < actual_dist - obstacle_safety_margin:
+            continue
+        # If we get here => free edge
+        free_edges.append((i, j, actual_dist))
+
+    return free_edges
+
+
+############################
+# PATH PLANNING
+############################
 
 def compute_waypoints(
-        occluded_points: np.ndarray,
-        obstacle_points: np.ndarray,
-        initial_position: np.ndarray,
-        seek_position: np.ndarray,
-        winning_radius: float,
-        iteration_limit: int,
-        max_velocity: float,
-        max_turn_duration: float,
+    occluded_points: np.ndarray,
+    obstacle_points: np.ndarray,
+    combined_mesh: trimesh.Trimesh,
+    initial_position: np.ndarray,
+    goal_points: np.ndarray,
+    iteration_limit: int,
+    max_velocity: float,
+    max_turn_duration: float,
 ) -> np.ndarray:
-  """Compute waypoints to navigate to the seek position while remaining hidden.
-  """
+    """
+    Compute a path of waypoints using A*, ensuring we remain within occluded space
+    (or at least away from obstacles) as we navigate from initial_position to any
+    point in goal_points.
+    """
 
-  # Use A* to compute the shortest path to the seek position. 
+    # We can load the mesh globally (main process)
+    global GLOBAL_MESH
+    GLOBAL_MESH = combined_mesh
 
-  def position_key(pos, precision=2):
-    return tuple(np.round(pos, decimals=precision))
+    # Build the set of "safe" points
+    all_points_with_obstacles = np.vstack([initial_position, occluded_points, goal_points])
+    obstacle_tree = KDTree(obstacle_points)
+    safe_all_points = []
+    for pt in all_points_with_obstacles:
+        dist, _ = obstacle_tree.query(pt)
+        if dist > OBSTACLE_SAFETY_MARGIN:
+            safe_all_points.append(pt)
+    all_points = np.array(safe_all_points)
+    tree = KDTree(all_points)
 
-  queue = PriorityQueue()
-  start_node = Node(position=initial_position)
-  queue.put((0, start_node))
+    def cost_to_go(point: np.ndarray, goal_pts: np.ndarray) -> float:
+        return np.linalg.norm(point - goal_pts, axis=1).min()
 
-  # create all_points, indicating points ok to visit
-  # this starts with all occluded points
-  # add a ball of size winning radius around the seek position
-  num_goal_samples = 20
-  goal_angles = np.linspace(0, 2 * np.pi, num_goal_samples, endpoint=False)
-  goal_points = np.array([
-        seek_position + winning_radius * np.array([np.cos(angle), np.sin(angle), 0])
-        for angle in goal_angles
-    ])
-  all_points_with_obstacles = np.vstack([occluded_points, goal_points])
-  
-  obstacle_tree = KDTree(obstacle_points)
-  safe_all_points = []
-  for point in all_points_with_obstacles:
-      distance, _ = obstacle_tree.query(point)
-      if distance > OBSTACLE_SAFETY_MARGIN:
-          safe_all_points.append(point)
+    max_inter_node_distance = max_velocity * max_turn_duration
+    logging.debug(f"Building adjacency with max inter-node distance {max_inter_node_distance} for {len(all_points)} pts")
 
-  all_points = np.array(safe_all_points)
-  tree = KDTree(all_points) 
+    # Collect edges
+    edges = []
+    origins_list = []
+    directions_list = []
+    distances_list = []
 
-  max_inter_node_distance = max_velocity * max_turn_duration
-  logging.debug(f"Starting waypoint computation at {initial_position}")
-  logging.debug(f"Max inter-node distance: {max_inter_node_distance}")
+    for i, pt_i in enumerate(all_points):
+        neighbor_indices = tree.query_ball_point(pt_i, r=max_inter_node_distance)
+        for j in neighbor_indices:
+            if i == j:
+                continue
+            direction = all_points[j] - pt_i
+            dist = np.linalg.norm(direction)
+            if dist < MIN_EDGE_DISTANCE:
+                continue
+            direction_norm = direction / dist
+            edges.append((i, j))
+            origins_list.append(pt_i)
+            directions_list.append(direction_norm)
+            distances_list.append(dist)
 
-  visited = set()
-  while not queue.empty():
-      _, current_node = queue.get()
-      visited.add(position_key(current_node.position))
+    origins_arr = np.array(origins_list)
+    directions_arr = np.array(directions_list)
+    distances_arr = np.array(distances_list)
 
-      # Check if we reached the seek position.
-      if np.linalg.norm(current_node.position - seek_position) < winning_radius: # Actually need to let it run longer for A*
-          # Add final node, at exact seek position 
-          final_node = Node(position=seek_position, parent=current_node, g=current_node.g)
-          current_node = final_node
-          path = []
-          while current_node is not None:
-              path.append(current_node.position)
-              current_node = current_node.parent
-          return np.array(path[::-1])  # Reverse the path
+    #########################################
+    # PARALLEL RAY INTERSECTIONS
+    #########################################
+    num_cores = 4  # or mp.cpu_count() for all
+    chunk_size = len(edges) // num_cores + 1
 
-      indices = tree.query_ball_point(current_node.position, r=max_inter_node_distance)
-      for i in indices:
-          point = all_points[i]
-          if position_key(point) in visited:
+    # Split into chunks
+    chunks = []
+    for idx in range(0, len(edges), chunk_size):
+        origins_chunk = origins_arr[idx : idx + chunk_size]
+        directions_chunk = directions_arr[idx : idx + chunk_size]
+        distances_chunk = distances_arr[idx : idx + chunk_size]
+        edges_chunk = edges[idx : idx + chunk_size]
+        chunks.append((origins_chunk, directions_chunk, distances_chunk, edges_chunk, OBSTACLE_SAFETY_MARGIN))
+
+    with mp.Pool(processes=num_cores, initializer=init_worker, initargs=(combined_mesh,)) as pool:
+        results = pool.starmap(process_edge_chunk, chunks)
+
+    free_edges = [item for sublist in results for item in sublist]
+
+    adjacency = np.zeros((len(all_points), len(all_points)), dtype=float)
+    for (i, j, dist) in free_edges:
+        adjacency[i, j] = dist
+        adjacency[j, i] = dist
+
+    goal_mat = np.zeros(len(all_points), dtype=bool)
+    for idx, pt in enumerate(all_points):
+        if np.any(np.all(pt == goal_points, axis=1)):
+            goal_mat[idx] = True
+
+    visited = np.zeros((len(all_points), 1), dtype=bool)
+    cost_to_come = np.full((len(all_points), 1), np.inf)
+    parents = np.full((len(all_points), 1), -1)
+
+    queue = PriorityQueue()
+    cost_to_come[0] = 0
+    queue.put((cost_to_go(initial_position, goal_points), 0))
+
+    logging.debug(f"Starting A* with {len(all_points)} points")
+
+    iteration = 0
+    while not queue.empty() and iteration < iteration_limit:
+        if iteration % 100 == 0:
+            logging.debug(f"Iteration {iteration}, queue size: {queue.qsize()}")
+
+        _, current_idx = queue.get()
+        if visited[current_idx]:
+            iteration += 1
             continue
-          distance = np.linalg.norm(current_node.position - point)
-          new_g = current_node.g + distance + MOVE_PENALTY
-          new_node = Node(position=point, parent=current_node, g=new_g)
-          h = np.linalg.norm(point - seek_position) #TODO try penalizing h more than g to encourage going for further points first
-          f = new_g + h
-          queue.put((f, new_node))
+        visited[current_idx] = True
 
-  return np.array([])  # No path found
+        # Check if this is a goal
+        if goal_mat[current_idx]:
+            # Reconstruct path
+            path = []
+            while current_idx != -1:
+                path.append(all_points[current_idx])
+                current_idx = int(parents[current_idx])
+            return np.array(path[::-1])  # Reverse
+        # Expand neighbors
+        for neighbor in np.where(adjacency[current_idx] > 0)[0]:
+            if visited[neighbor]:
+                continue
+            new_cost = cost_to_come[current_idx] + adjacency[current_idx, neighbor]
+            if new_cost < cost_to_come[neighbor]:
+                cost_to_come[neighbor] = new_cost
+                parents[neighbor] = current_idx
+                fval = cost_to_come[neighbor] + cost_to_go(all_points[neighbor], goal_points)
+                queue.put((fval, neighbor))
+
+        iteration += 1
+
+    # If we exit, no path found (or iteration limit reached)
+    return np.array([initial_position])
 
 
 if __name__ == "__main__":
@@ -366,11 +481,10 @@ if __name__ == "__main__":
       logging.error("Camera position is inside an obstacle. Aborting.")
       exit()
 
-
   # Map bounds
-  grid_x = np.linspace(-40, 40, NUM_SAMPLES_HORIZONTAL)
-  grid_y = np.linspace(-40, 40, NUM_SAMPLES_HORIZONTAL)
-  grid_z = np.linspace(0, 15, NUM_SAMPLES_VERTICAL)
+  grid_x = np.linspace(MAP_X_MIN, MAP_X_MAX, NUM_SAMPLES_HORIZONTAL)
+  grid_y = np.linspace(MAP_Y_MIN, MAP_Y_MAX, NUM_SAMPLES_HORIZONTAL)
+  grid_z = np.linspace(MAP_Z_MIN, MAP_Z_MAX, NUM_SAMPLES_VERTICAL)
   sample_points = np.array(np.meshgrid(grid_x, grid_y, grid_z)).T.reshape(-1, 3)
 
   visible_points, occluded_points = compute_occlusion_map(
@@ -381,7 +495,14 @@ if __name__ == "__main__":
   logging.info(f"Computed {len(occluded_points)} occluded points ({len(occluded_points) / len(sample_points) * 100:.2f}% of total)")
   logging.debug(f"Occluded points: {occluded_points}")
 
-  # TODO: save occlued points to file
+  np.save(output_dir / "visible_points.npy", visible_points)
+  np.save(output_dir / "occluded_points.npy", occluded_points)
+
+  # Sample randomly occluded poiints with downsampling factor
+  num_occluded_points = int(len(occluded_points) / DOWNSAMPLING_FACTOR)
+  occluded_indices = np.random.choice(len(occluded_points), num_occluded_points, replace=False)
+  occluded_points = occluded_points[occluded_indices]
+  logging.info(f"Downsampled occluded points to {num_occluded_points} points")
 
   inside_mask = combined_mesh.contains(sample_points)
   inside_points = sample_points[inside_mask]
@@ -391,21 +512,31 @@ if __name__ == "__main__":
       obstacle_points=inside_points,
       file_path=output_dir / "obstacle_points.ply",
   )
-      
+
+  
+
+  border_y = np.linspace(MAP_Y_MIN, MAP_Y_MAX, NUM_SAMPLES_HORIZONTAL)
+  border_z = np.linspace(MAP_Z_MIN, MAP_Z_MAX, NUM_SAMPLES_VERTICAL)
+  B_y, B_z = np.meshgrid(border_y, border_z)
+  border_x = np.full(B_y.shape, world.seeker_pose[0])
+  goal_points = np.column_stack((border_x.ravel(), B_y.ravel(), B_z.ravel()))
+
+
+  logging.debug(f"Generated {len(goal_points)} goal points")
+
   waypoints = compute_waypoints(
       occluded_points=occluded_points,
       obstacle_points=inside_points,
-      initial_position=np.array([0, 0, 0]),
-      seek_position=world.seeker_pose[:3],
-      winning_radius=1.0,
-      iteration_limit=100,
-      max_velocity=1.0,
-      max_turn_duration=10.0,
+      combined_mesh=combined_mesh,
+      initial_position=INITIAL_POSITION,
+      iteration_limit=10000, 
+      goal_points=goal_points,
+      max_velocity=MAX_VELOCITY,
+      max_turn_duration=MAX_TURN_DURATION,
   )
 
   logging.info(f"Computed {len(waypoints)} waypoints")
   logging.debug(f"Waypoints: {waypoints}")
-
   np.save(output_dir / "waypoints.npy", waypoints)
 
   if not headless:
@@ -413,6 +544,7 @@ if __name__ == "__main__":
           visible_points=visible_points, 
           occluded_points=occluded_points, 
           inside_points=inside_points,
+          goal_points=goal_points,
           waypoints=waypoints,)
 
 
