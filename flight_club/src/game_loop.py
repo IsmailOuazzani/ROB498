@@ -19,6 +19,8 @@ class SequenceTimerNode(Node):
         self.timestamps = []  # Elapsed times
         self.predictions = []  # Predictions of when 'space' would be pressed
 
+        self.seeker_is_looking = False
+
         self.listener = keyboard.Listener(on_press=self.on_key_press)
         self.listener.start()
 
@@ -33,7 +35,8 @@ class SequenceTimerNode(Node):
 
         now = self.get_clock().now()
 
-        if key_str == '1':
+
+        if key_str == '1' and not self.seeker_is_looking:
             # Reset everything
             self.start_time = now
             self.pressed_keys = []
@@ -41,6 +44,9 @@ class SequenceTimerNode(Node):
             self.predictions = []
             self.get_logger().info("Key '1' pressed. Timer started.")
             return
+        elif key_str == 'space' and self.seeker_is_looking:
+            self.seeker_is_looking = False
+            self.get_logger().info("Seeking is stopped")
 
         if self.start_time is None:
             return  # Wait until '1' is pressed
@@ -61,6 +67,8 @@ class SequenceTimerNode(Node):
                 else:
                     # On space: print final comparison
                     self.show_prediction_summary()
+                    self.seeker_is_looking = True
+                    self.get_logger().info("Seeking is started")
             elif key_str in self.pressed_keys:
                 self.get_logger().info(f"Ignored repeated key '{key_str}'")
             else:

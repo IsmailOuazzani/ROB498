@@ -22,6 +22,7 @@ install(PROGRAMS
   src/waypoint_publisher.py
   src/vicon.py
   src/game_loop.py
+  src/sequence_node.py
   src/planner.py
   src/velocity_control.py
   src/visualizer.py

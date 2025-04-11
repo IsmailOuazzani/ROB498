@@ -6,7 +6,6 @@ from std_srvs.srv import Trigger
 from mavros_msgs.msg import State
 from mavros_msgs.srv import SetMode, CommandBool, CommandTOL
 from geometry_msgs.msg import PoseStamped, Pose, PoseArray, TwistStamped
-from flight_club.msg import TrajectoryPlan
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 import logging
 import time
@@ -14,6 +13,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 
+from flight_club.msg import TrajectoryPlan
 from path_planning_utils.path_generation import initial_guess
 from path_planning_utils.plotting import decompose_X, plan_vs_execute
 from flight_club.tracker import TargetTrackerPath
