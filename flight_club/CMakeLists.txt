@@ -25,11 +25,11 @@ install(PROGRAMS
   src/waypoint_publisher.py
   src/vicon.py
   src/game_loop.py
+  src/sequence_node.py
   src/planner.py
   src/velocity_control.py
   src/visualizer.py
   src/realsense.py
-  src/exercise2/realsense.py
   src/hiding/raycaster.py
   src/hiding/occlusion_mapping.py
   src/hiding/occlusion_visualizer.py
