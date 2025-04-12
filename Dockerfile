@@ -6,11 +6,13 @@ RUN apt-get update -y &&\
     python3-pip \
     python3-dev \
     python3-setuptools \
+    pulseaudio \
     python3-tk
 
 
 # Install Python dependencies
-RUN pip3 install numpy pyyaml scipy 
+COPY requirements.txt /tmp/requirements.txt
+RUN pip3 install -r /tmp/requirements.txt
 
 # Install PX4
 WORKDIR /src

@@ -2,4 +2,8 @@ rtree
 trimesh
 numpy
 matplotlib
+pynput
+playsound
+pyyaml
+scipy
 pyglet<2

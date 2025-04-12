@@ -20,12 +20,7 @@ ros2 launch realsense2_camera rs_launch.py
 ```
 
 ### Run the simulation
-Clone the PX4 source code in this repo:
-Build the Docker image once:
-```
-xhost +local:docker
-docker build -t base-capstone .
-```
+Clone the PX4 source code in this repo.
 Note: we need to implement a service to set to offboard mode for the simulation to work again (see TODO in exercise2.py)
 #### Exercise 2
 Run the Docker container:
@@ -106,4 +101,27 @@ To launch the simulation in a custom world:
 export PX4_SITL_WORLD=/src/ros_ws/src/drone_packages/simulation/worlds/easy.sdf
 cd PX4-Autopilot/
 make px4_sitl gazebo-classic
+```
+
+
+
+### Game
+To start the game, run the following:
+```
+source /opt/ros/foxy/setup.bash
+ros2 service call /flight_club/start_game std_srvs/srv/Empty
+```
+
+To stop the game, run the following:
+```
+source /opt/ros/foxy/setup.bash
+ros2 service call /flight_club/stop_game std_srvs/srv/Empty
+```
+
+#### Debug
+To launch dummy position, you can use:
+```
+ros2 topic pub -r 10 /mavros/local_position/pose geometry_msgs/msg/PoseStamped "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: 'map'}, 
+  pose: {position: {x: -20.0, y: 2.0, z: 3.0}, 
+         orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}"
 ```
