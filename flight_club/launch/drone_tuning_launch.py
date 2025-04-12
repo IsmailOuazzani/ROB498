@@ -50,10 +50,18 @@ def generate_launch_description():
         name='planner_node',
         output='screen')
 
+    realsense_node = Node(
+        package='flight_club',
+        executable='realsense.py',
+        name='realsense_node',
+        output='screen'
+    )
+
     return LaunchDescription([
         waypoint_output_folder_arg,
         mavros_launch,
         executer_node,
         planner_node,
-        wp_pub_node
+        wp_pub_node,
+        realsense_node
             ])

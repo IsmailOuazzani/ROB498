@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 TOPIC_NAMESPACE = 'rob498_drone_6'
-SET_HEIGHT = 1.5
+SET_HEIGHT = 1.0
 
 class CommNode(Node):
     def __init__(self):
