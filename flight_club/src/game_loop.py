@@ -187,9 +187,14 @@ class GameLoopNode(Node):
     seeker_marker.scale.x = 1.0
     seeker_marker.scale.y = 1.0
     seeker_marker.scale.z = 1.0
-    seeker_marker.color.r = 1.0
-    seeker_marker.color.g = 0.0
-    seeker_marker.color.b = 0.0
+    if self.game_state == GameInfo.GAME_STATE_SEEKING:
+        seeker_marker.color.r = 1.0
+        seeker_marker.color.g = 0.0
+        seeker_marker.color.b = 0.0
+    else:
+        seeker_marker.color.r = 0.0
+        seeker_marker.color.g = 1.0
+        seeker_marker.color.b = 0.0
     seeker_marker.color.a = 1.0
     marker_array.markers.append(seeker_marker)
     # Publish the marker array
