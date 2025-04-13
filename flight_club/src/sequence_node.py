@@ -10,7 +10,7 @@ from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 from enum import Enum, auto
 
 
-from flight_club.msg import TrajectoryPlan
+from flight_club.msg import TrajectoryPlan, GameInfo
 from path_planning_utils.path_generation import initial_guess
 
 
@@ -51,6 +51,7 @@ class SequenceTimerNode(Node):
         self.seeker_is_looking = False
         self.just_switched = False
         self.robot_state = RobotState.INIALIZING
+        self.prev_game_state = GameInfo.GAME_STATE_STOP
 
         qos_profile = QoSProfile(
             depth=2,
@@ -58,7 +59,6 @@ class SequenceTimerNode(Node):
             durability=QoSDurabilityPolicy.VOLATILE
         )
         self.send_waypoints = self.create_publisher(TrajectoryPlan, f'{TOPIC_NAMESPACE}/comm/trajectory', 10)
-        self.listener = keyboard.Listener(on_press=self.on_key_press)
         self.timer = self.create_timer(0.1, self.check_seeker_state)
         self.pose_tracker = self.create_subscription(
             PoseStamped,
@@ -66,66 +66,49 @@ class SequenceTimerNode(Node):
             self.mavros_pose_callback,
             qos_profile
         )
-
-        self.listener.start()
+        self.game_info_sub = self.create_subscription(
+            GameInfo,
+            "/flight_club/game_info",
+            self.game_info_callback,
+            10
+        )
         self.get_logger().info("Running...")
 
     def mavros_pose_callback(self, msg: PoseStamped):
         self.pose = msg
         # self.get_logger().info(f"Pose: {self.pose.pose.position.x}, {self.pose.pose.position.y}, {self.pose.pose.position.z}")
 
-    def on_key_press(self, key):
-        try:
-            key_str = key.char
-        except AttributeError:
-            key_str = 'space' if key == keyboard.Key.space else None
+    def game_info_callback(self, msg: GameInfo):
+        # Check if the state has changed
+        self.get_logger().info(f"Game state: {msg.game_state}")
+        if msg.game_state != self.prev_game_state:
+            self.get_logger().info(f"Game state changed from {self.prev_game_state} to {msg.game_state}")
+            self.prev_game_state = msg.game_state
 
-        if key_str is None:
-            return
-
-        now = self.get_clock().now()
+            now = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
 
 
-        if key_str == '1' and not self.seeker_is_looking:
-            # Reset everything
-            self.start_time = now
-            self.pressed_keys = []
-            self.timestamps = [0.0]  # Start time
-            self.predictions = []
-            self.get_logger().info("Key '1' pressed. Timer started.")
-            return
-        elif key_str == 'space' and self.seeker_is_looking:
-            self.predictions = []
-            self.seeker_is_looking = False
-            self.get_logger().info("Key 'space' pressed. Seeker is NOT looking.")
-            self.just_switched = True
-            self.robot_state = RobotState.EXPECT_MISSION
-
-        if self.start_time is None:
-            return  # Wait until '1' is pressed
-
-        if len(self.pressed_keys) < len(self.expected_keys):
-            expected_key = self.expected_keys[len(self.pressed_keys)]
-
-            if key_str == expected_key:
-                elapsed = (now - self.start_time).nanoseconds / 1e9
+            if msg.game_state == GameInfo.GAME_STATE_BLIND_1:
+                # Reset everything
+                self.start_time = now
+                self.pressed_keys = []
+                self.timestamps = [0.0]  # Start time
+                self.predictions = []
+                self.get_logger().info("Key '1' pressed. Timer started.")
+                return
+            elif msg.game_state == GameInfo.GAME_STATE_BLIND_INDEF:
+                self.predictions = []
+                self.get_logger().info("Key 'space' pressed. Seeker is NOT looking.")
+                self.just_switched = True
+                self.robot_state = RobotState.EXPECT_MISSION
+            elif msg.game_state == GameInfo.GAME_STATE_BLIND_2 or msg.game_state == GameInfo.GAME_STATE_BLIND_3:
+                elapsed = (now - self.start_time)
                 self.timestamps.append(elapsed)
-                self.pressed_keys.append(key_str)
-                self.get_logger().info(f"Key '{key_str}' pressed at +{elapsed:.3f} seconds")
+                self.linear_predict()
+            elif msg.game_state == GameInfo.GAME_STATE_SEEKING:
+                self.robot_state = RobotState.SEEKER_LOOKING
+                self.get_logger().info("Seeker is looking.")
 
-                if key_str != 'space':
-                    # Predict when space will be pressed
-                    self.linear_predict()
-                else:
-                    # On space: print final comparison
-                    # self.show_prediction_summary()
-                    self.seeker_is_looking = True
-                    self.robot_state = RobotState.SEEKER_LOOKING
-                    self.get_logger().info("Seeker is looking.")
-            elif key_str in self.pressed_keys:
-                self.get_logger().info(f"Ignored repeated key '{key_str}'")
-            else:
-                self.get_logger().info(f"Ignored out-of-sequence key '{key_str}'")
 
     def linear_predict(self):
         n = len(self.timestamps)
@@ -206,7 +189,7 @@ class SequenceTimerNode(Node):
                 self.get_logger().info(f"Time to completion: {time_to_completion:.3f}s | Avg prediction: {avg_prediction:.3f}s")
 
                 if time_to_completion > avg_prediction:
-                    self.get_logger().info("Returning to home")
+                    self.get_logger().info("finding closest not occluded point")
                     # find the closest not occluded point
                     if self.out_of_collision is not None:
                         current_position = np.array([

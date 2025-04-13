@@ -27,9 +27,10 @@ GOAL_TOLERANCE = 0.5  # meters
 
 
 class GameLoopNode(Node):
-  def __init__(self, map_name: str, goal_x: float):
+  def __init__(self, goal_x: float):
     super().__init__(NODE_NAME, namespace=NODE_NAMESPACE)
-
+    self.declare_parameter("map_name", "default_map")
+    self.map_name = self.get_parameter("map_name").get_parameter_value().string_value
     # Set up logging
     self._logger = logging.getLogger("game_loop_logger")
     self._logger.setLevel(logging.DEBUG)
@@ -47,7 +48,6 @@ class GameLoopNode(Node):
     self._logger.info("Initializing GameLoopNode...")
 
     # Initialize parameters
-    self.map_name = map_name
     self.game_state = GameInfo.GAME_STATE_STOP
     self.goal_x = goal_x
 
@@ -204,20 +204,15 @@ class GameLoopNode(Node):
 
     # If forced or from the timer
     self.game_info_pub.publish(msg)
-    if force_publish:
-        self._logger.debug("Published game info (forced).")
-    else:
-        self._logger.debug("Published game info (timer).")
+    # if force_publish:
+    #     self._logger.debug("Published game info (forced).")
+    # else:
+    #     self._logger.debug("Published game info (timer).")
 
 if __name__ == "__main__":
-  parser = ArgumentParser(description="Game Loop Node")
-  parser.add_argument(
-    "-m", "--map", type=str, default="default_map", help="Map name"
-  )
 
   rclpy.init(args=sys.argv)
   node = GameLoopNode(
-    map_name=parser.parse_args().map,
     goal_x = -20.0, #TODO: replace with something conditional on the map, with the seeker
   )
 
