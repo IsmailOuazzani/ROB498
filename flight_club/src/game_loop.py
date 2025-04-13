@@ -1,35 +1,42 @@
 #!/usr/bin/env python3
 
+import logging
+import sys
+import time
+import threading
+from argparse import ArgumentParser
+from pathlib import Path
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy, QoSHistoryPolicy
 from rclpy.clock import Clock
 
 from std_msgs.msg import Header
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Point32
 from std_srvs.srv import Empty
+from sensor_msgs.msg import PointCloud, ChannelFloat32
 
-import logging
-import sys
-import time
-import threading
+import numpy as np
 from pynput import keyboard
 from playsound import playsound
 
 from flight_club.msg import GameInfo
 
-from argparse import ArgumentParser
+
 
 NODE_NAME = "game_loop_node"
 NODE_NAMESPACE = "flight_club"
 
 GOAL_TOLERANCE = 0.5  # meters
 
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "output"
+
 
 class GameLoopNode(Node):
   def __init__(self, goal_x: float):
     super().__init__(NODE_NAME, namespace=NODE_NAMESPACE)
-    self.declare_parameter("map_name", "default_map")
+    self.declare_parameter("map_name", "dust2")
     self.map_name = self.get_parameter("map_name").get_parameter_value().string_value
     # Set up logging
     self._logger = logging.getLogger("game_loop_logger")
@@ -69,6 +76,14 @@ class GameLoopNode(Node):
     self.publish_timer = self.create_timer(
       1.0, self.publish_game_info
     )
+    self.occluded_pub = self.create_publisher(
+      PointCloud, "occluded", 10
+    )
+    self.publish_occluded_timer = self.create_timer(
+      1, self.publish_occluded,
+    )
+
+
 
     # Set up services
     self.start_game_srv = self.create_service(
@@ -105,6 +120,38 @@ class GameLoopNode(Node):
     self._victory_played = False
 
     self._logger.info("GameLoopNode initialized.")
+
+
+  def publish_occluded(self):
+    # https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud.html
+    occluded_map_file = DATA_DIR / f"{self.map_name}_occluded.npy"
+    if not occluded_map_file.exists():
+        self._logger.error(f"Occluded map file {occluded_map_file} not found.")
+        return
+    # file contains x y and z coordinates of occluded points
+    occluded_map = np.load(occluded_map_file)
+    occluded_map = occluded_map.reshape(-1, 3)
+    occluded_map = occluded_map.astype(np.float32)
+    # Create PointCloud message
+    occluded_msg = PointCloud()
+    occluded_msg.header = Header()
+    occluded_msg.header.stamp = self.get_clock().now().to_msg()
+    occluded_msg.header.frame_id = "map"  # arbitrary, if needed
+    occluded_msg.points = []
+    # single channel with intensity 1.0
+    occluded_msg.channels = []
+    occluded_msg.channels.append(ChannelFloat32())
+    occluded_msg.channels[0].name = "intensity"
+    occluded_msg.channels[0].values = [1.0] * len(occluded_map)
+    # Fill the points
+    for point in occluded_map:
+        p = Point32()
+        p.x = float(point[0])
+        p.y = float(point[1])
+        p.z = float(point[2])
+        occluded_msg.points.append(p)
+    # Publish the message
+    self.occluded_pub.publish(occluded_msg)
 
 
   def start_game_callback(self, request, response):
