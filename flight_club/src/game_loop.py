@@ -62,6 +62,14 @@ class GameLoopNode(Node):
     self.game_state = GameInfo.GAME_STATE_STOP
     self.goal_x = goal_x
 
+    world_file = WORLDS_DIR / f"{self.map_name}.sdf"
+    self.world = parse_sdf_map(world_file)
+    occluded_map_file = DATA_DIR / f"{self.map_name}_occluded.npy"
+    self.occluded_map = np.load(occluded_map_file).reshape(-1, 3).astype(np.float32)
+    waypoints_file = DATA_DIR / f"{self.map_name}_waypoints.npy"
+    self.waypoints = np.load(waypoints_file).reshape(-1, 3).astype(np.float32)
+
+
     # States we rotate through when pressing space (in the exact order):
     # BLIND_1 -> BLIND_2 -> BLIND_3 -> SEEKING -> (then back to) BLIND_INDEF
     self.cycle_states = [
@@ -137,16 +145,10 @@ class GameLoopNode(Node):
     self._logger.info("GameLoopNode initialized.")
 
   def publish_world(self): # TODO: move the formatting part of this function to another file to declutter
-    world_file = WORLDS_DIR / f"{self.map_name}.sdf"
-    if not world_file.exists():
-        self._logger.error(f"World file {world_file} not found.")
-        return
-    
-    world = parse_sdf_map(world_file)
     time_now = self.get_clock().now().to_msg()
 
     marker_array = MarkerArray()
-    for model in world.models:
+    for model in self.world.models:
         marker = Marker()
         marker.header.frame_id = "map"
         marker.header.stamp =time_now
@@ -177,9 +179,9 @@ class GameLoopNode(Node):
     seeker_marker.id = 0
     seeker_marker.type = Marker.SPHERE
     seeker_marker.action = Marker.ADD
-    seeker_marker.pose.position.x = world.seeker_pose[0]
-    seeker_marker.pose.position.y = world.seeker_pose[1]
-    seeker_marker.pose.position.z = world.seeker_pose[2]
+    seeker_marker.pose.position.x = self.world.seeker_pose[0]
+    seeker_marker.pose.position.y = self.world.seeker_pose[1]
+    seeker_marker.pose.position.z = self.world.seeker_pose[2]
     seeker_marker.pose.orientation.x = 0.0
     seeker_marker.pose.orientation.y = 0.0
     seeker_marker.pose.orientation.z = 0.0
@@ -202,15 +204,6 @@ class GameLoopNode(Node):
     self._logger.debug("Published world marker array.")
 
   def publish_occluded(self): # TODO: move the formatting part of this function to another file to declutter
-    # https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud.html
-    occluded_map_file = DATA_DIR / f"{self.map_name}_occluded.npy"
-    if not occluded_map_file.exists():
-        self._logger.error(f"Occluded map file {occluded_map_file} not found.")
-        return
-    # file contains x y and z coordinates of occluded points
-    occluded_map = np.load(occluded_map_file)
-    occluded_map = occluded_map.reshape(-1, 3)
-    occluded_map = occluded_map.astype(np.float32)
     # Create PointCloud message
     occluded_msg = PointCloud()
     occluded_msg.header = Header()
@@ -221,9 +214,9 @@ class GameLoopNode(Node):
     occluded_msg.channels = []
     occluded_msg.channels.append(ChannelFloat32())
     occluded_msg.channels[0].name = "intensity"
-    occluded_msg.channels[0].values = [1.0] * len(occluded_map)
+    occluded_msg.channels[0].values = [1.0] * len(self.occluded_map)
     # Fill the points
-    for point in occluded_map:
+    for point in self.occluded_map:
         p = Point32()
         p.x = float(point[0])
         p.y = float(point[1])
@@ -233,16 +226,7 @@ class GameLoopNode(Node):
     self.occluded_pub.publish(occluded_msg)
     self._logger.debug("Published occluded point cloud.")
 
-  def publish_waypoints(self):
-    waypoints_file = DATA_DIR / f"{self.map_name}_waypoints.npy"
-    if not waypoints_file.exists():
-        self._logger.error(f"Waypoints file {waypoints_file} not found.")
-        return
-    # file contains x y and z coordinates of waypoints
-    waypoints = np.load(waypoints_file)
-    waypoints = waypoints.reshape(-1, 3)
-    waypoints = waypoints.astype(np.float32)
-    
+  def publish_waypoints(self):    
     # Create a LINE_STRIP marker
     waypoints_marker = Marker()
     waypoints_marker.header.frame_id = "map"
@@ -256,7 +240,7 @@ class GameLoopNode(Node):
     waypoints_marker.color.g = 1.0
     waypoints_marker.color.b = 1.0
     waypoints_marker.color.a = 1.0
-    for point in waypoints:
+    for point in self.waypoints:
         p = Point()
         p.x = float(point[0])
         p.y = float(point[1])
