@@ -7,7 +7,8 @@ Panels:
         - /Global Options1
         - /Status1
         - /DronePose1/Status1
-        - /PointCloud1
+        - /Waypoints1/Topic1
+        - /Waypoints1/Namespaces1
       Splitter Ratio: 0.5
     Tree Height: 788
   - Class: rviz_common/Selection
@@ -81,7 +82,7 @@ Visualization Manager:
       Max Intensity: 1
       Min Color: 0; 0; 0
       Min Intensity: 1
-      Name: PointCloud
+      Name: Occluded
       Position Transformer: XYZ
       Selectable: false
       Size (Pixels): 3
@@ -95,6 +96,31 @@ Visualization Manager:
         Value: /flight_club/occluded
       Use Fixed Frame: true
       Use rainbow: true
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: World
+      Namespaces:
+        cylinders: true
+        seeker: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /flight_club/world
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Waypoints
+      Namespaces:
+        waypoints: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /flight_club/waypoints
       Value: true
   Enabled: true
   Global Options:
@@ -139,25 +165,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 16.640892028808594
+      Distance: 101.25887298583984
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: 11.421698570251465
+        Y: -4.497490406036377
+        Z: -4.798852920532227
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7203985452651978
+      Pitch: 1.0947967767715454
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 4.250392913818359
+      Yaw: 4.635414123535156
     Saved: ~
 Window Geometry:
   Displays:

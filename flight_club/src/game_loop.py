@@ -13,7 +13,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy, QoS
 from rclpy.clock import Clock
 
 from std_msgs.msg import Header
-from geometry_msgs.msg import PoseStamped, Point32
+from geometry_msgs.msg import PoseStamped, Point32, Point
 from std_srvs.srv import Empty
 from sensor_msgs.msg import PointCloud, ChannelFloat32
 from visualization_msgs.msg import Marker, MarkerArray
@@ -92,6 +92,13 @@ class GameLoopNode(Node):
     self.publish_occluded_timer = self.create_timer(
       1.0, self.publish_occluded,
     )
+    self.waypoints_pub = self.create_publisher(
+      Marker, "waypoints", 10
+    )
+    self.publish_waypoints_timer = self.create_timer(
+      1.0, self.publish_waypoints,
+    )
+
 
     # Set up services
     self.start_game_srv = self.create_service(
@@ -129,7 +136,7 @@ class GameLoopNode(Node):
 
     self._logger.info("GameLoopNode initialized.")
 
-  def publish_world(self):
+  def publish_world(self): # TODO: move the formatting part of this function to another file to declutter
     world_file = WORLDS_DIR / f"{self.map_name}.sdf"
     if not world_file.exists():
         self._logger.error(f"World file {world_file} not found.")
@@ -189,7 +196,7 @@ class GameLoopNode(Node):
     self.world_pub.publish(marker_array)
     self._logger.debug("Published world marker array.")
 
-  def publish_occluded(self):
+  def publish_occluded(self): # TODO: move the formatting part of this function to another file to declutter
     # https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud.html
     occluded_map_file = DATA_DIR / f"{self.map_name}_occluded.npy"
     if not occluded_map_file.exists():
@@ -220,6 +227,39 @@ class GameLoopNode(Node):
     # Publish the message
     self.occluded_pub.publish(occluded_msg)
     self._logger.debug("Published occluded point cloud.")
+
+  def publish_waypoints(self):
+    waypoints_file = DATA_DIR / f"{self.map_name}_waypoints.npy"
+    if not waypoints_file.exists():
+        self._logger.error(f"Waypoints file {waypoints_file} not found.")
+        return
+    # file contains x y and z coordinates of waypoints
+    waypoints = np.load(waypoints_file)
+    waypoints = waypoints.reshape(-1, 3)
+    waypoints = waypoints.astype(np.float32)
+    
+    # Create a LINE_STRIP marker
+    waypoints_marker = Marker()
+    waypoints_marker.header.frame_id = "map"
+    waypoints_marker.header.stamp = self.get_clock().now().to_msg()
+    waypoints_marker.ns = 'waypoints'
+    waypoints_marker.id = 0
+    waypoints_marker.type = Marker.LINE_STRIP
+    waypoints_marker.action = Marker.ADD
+    waypoints_marker.scale.x = 0.3
+    waypoints_marker.color.r = 0.0
+    waypoints_marker.color.g = 1.0
+    waypoints_marker.color.b = 1.0
+    waypoints_marker.color.a = 1.0
+    for point in waypoints:
+        p = Point()
+        p.x = float(point[0])
+        p.y = float(point[1])
+        p.z = float(point[2])
+        waypoints_marker.points.append(p)
+    # Publish the marker
+    self.waypoints_pub.publish(waypoints_marker)
+    self._logger.debug("Published waypoints marker.")
 
 
   def start_game_callback(self, request, response):
@@ -326,7 +366,7 @@ class GameLoopNode(Node):
 
 if __name__ == "__main__":
 
-  rclpy.init(args=sys.argv)
+  rclpy.init(args=sys.argv) #TODO: use argparse instead
   node = GameLoopNode(
     goal_x = -20.0, #TODO: replace with something conditional on the map, with the seeker
   )
