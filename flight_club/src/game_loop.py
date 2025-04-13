@@ -285,7 +285,7 @@ class GameLoopNode(Node):
 
     # 1) Check if something (placeholder if True) => if False => LOST
     #    We'll invert the logic: if not True => become LOST
-    if not True:
+    if not True: #TODO: use query_ball_point on visible or obstacle KDTrees to test loss
         self._logger.error("Game lost condition triggered!")
         self.set_game_state(GameInfo.GAME_STATE_LOST)
         return
