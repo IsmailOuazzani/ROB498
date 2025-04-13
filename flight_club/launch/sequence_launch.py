@@ -34,6 +34,21 @@ def generate_launch_description():
         launch_arguments={'fcu_url': 'udp://:14540@127.0.0.1:14557'}.items()
     )
 
+    # Declare launch argument for the map name
+    map_arg = DeclareLaunchArgument(
+        'map_name',
+        default_value='default_map',
+        description='Map name to be used in the game loop node.'
+    )
+
+    game_loop_node = Node(
+        package='flight_club',
+        executable='game_loop.py',  # Make sure this matches the entry point or filename
+        name='game_loop_node',
+        namespace='flight_club',
+        output='screen',
+        parameters=[{'map_name': LaunchConfiguration('map_name')}],
+    )
 
     sequence_node = Node(
         package='flight_club',
@@ -54,7 +69,9 @@ def generate_launch_description():
     return LaunchDescription([
         waypoint_output_folder_arg,
         occluded_folder_arg,
-        mavros_launch,
+        map_arg,
+        game_loop_node,
+        #mavros_launch,
         sequence_node, 
-        executer_node
+        #executer_node
     ])
