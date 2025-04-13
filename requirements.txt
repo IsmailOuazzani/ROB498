@@ -1,6 +1,6 @@
 rtree
 trimesh
-numpy
+numpy>=1.24.4
 matplotlib
 pynput
 playsound

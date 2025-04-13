@@ -16,12 +16,15 @@ from std_msgs.msg import Header
 from geometry_msgs.msg import PoseStamped, Point32
 from std_srvs.srv import Empty
 from sensor_msgs.msg import PointCloud, ChannelFloat32
+from visualization_msgs.msg import Marker, MarkerArray
 
 import numpy as np
 from pynput import keyboard
 from playsound import playsound
 
 from flight_club.msg import GameInfo
+
+from hiding.hiding import parse_sdf_map
 
 
 
@@ -31,6 +34,7 @@ NODE_NAMESPACE = "flight_club"
 GOAL_TOLERANCE = 0.5  # meters
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "output"
+WORLDS_DIR = Path(__file__).resolve().parent.parent.parent / "simulation/worlds"
 
 
 class GameLoopNode(Node):
@@ -76,14 +80,18 @@ class GameLoopNode(Node):
     self.publish_timer = self.create_timer(
       1.0, self.publish_game_info
     )
+    self.world_pub = self.create_publisher(
+      MarkerArray, "world", 10
+    )
+    self.publish_world_timer = self.create_timer(
+      1.0, self.publish_world
+    )
     self.occluded_pub = self.create_publisher(
       PointCloud, "occluded", 10
     )
     self.publish_occluded_timer = self.create_timer(
-      1, self.publish_occluded,
+      1.0, self.publish_occluded,
     )
-
-
 
     # Set up services
     self.start_game_srv = self.create_service(
@@ -121,6 +129,65 @@ class GameLoopNode(Node):
 
     self._logger.info("GameLoopNode initialized.")
 
+  def publish_world(self):
+    world_file = WORLDS_DIR / f"{self.map_name}.sdf"
+    if not world_file.exists():
+        self._logger.error(f"World file {world_file} not found.")
+        return
+    
+    world = parse_sdf_map(world_file)
+    time_now = self.get_clock().now().to_msg()
+
+    marker_array = MarkerArray()
+    for model in world.models:
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp =time_now
+        marker.ns = 'cylinders'
+        marker.id = len(marker_array.markers)
+        marker.type = Marker.CYLINDER
+        marker.action = Marker.ADD
+        marker.pose.position.x = model.pose[0]
+        marker.pose.position.y = model.pose[1]
+        marker.pose.position.z = model.pose[2]
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = model.radius * 2
+        marker.scale.y = model.radius * 2
+        marker.scale.z = model.length
+        marker.color.r = 0.0
+        marker.color.g = 0.0
+        marker.color.b = 1.0
+        marker.color.a = 1.0
+        marker_array.markers.append(marker)
+    # Create a sphere marker for the seeker
+    seeker_marker = Marker()
+    seeker_marker.header.frame_id = "map"
+    seeker_marker.header.stamp = time_now
+    seeker_marker.ns = 'seeker'
+    seeker_marker.id = 0
+    seeker_marker.type = Marker.SPHERE
+    seeker_marker.action = Marker.ADD
+    seeker_marker.pose.position.x = world.seeker_pose[0]
+    seeker_marker.pose.position.y = world.seeker_pose[1]
+    seeker_marker.pose.position.z = world.seeker_pose[2]
+    seeker_marker.pose.orientation.x = 0.0
+    seeker_marker.pose.orientation.y = 0.0
+    seeker_marker.pose.orientation.z = 0.0
+    seeker_marker.pose.orientation.w = 1.0
+    seeker_marker.scale.x = 1.0
+    seeker_marker.scale.y = 1.0
+    seeker_marker.scale.z = 1.0
+    seeker_marker.color.r = 1.0
+    seeker_marker.color.g = 0.0
+    seeker_marker.color.b = 0.0
+    seeker_marker.color.a = 1.0
+    marker_array.markers.append(seeker_marker)
+    # Publish the marker array
+    self.world_pub.publish(marker_array)
+    self._logger.debug("Published world marker array.")
 
   def publish_occluded(self):
     # https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointCloud.html
@@ -152,6 +219,7 @@ class GameLoopNode(Node):
         occluded_msg.points.append(p)
     # Publish the message
     self.occluded_pub.publish(occluded_msg)
+    self._logger.debug("Published occluded point cloud.")
 
 
   def start_game_callback(self, request, response):
