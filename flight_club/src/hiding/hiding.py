@@ -10,31 +10,36 @@ import trimesh
 import trimesh.transformations as tra
 import matplotlib.pyplot as plt
 
+from argparse import ArgumentParser
+
 from queue import PriorityQueue
 from dataclasses import dataclass
 
 from scipy.spatial import KDTree
 import multiprocessing as mp
 
+# in the parent folder of this file
+MAPS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "simulation/worlds"
+
 
 GLOBAL_MESH = None
 
-INITIAL_POSITION = np.array([0, 0 , 1])
+INITIAL_POSITION = np.array([5, 0 , 1])
 SEEKER_OFFSET = np.array([0.0, 0.0, 1.5, 0.0, 0.0, 0.0])
-OBSTACLE_SAFETY_MARGIN = 2.0
+OBSTACLE_SAFETY_MARGIN = 1.0
 MIN_EDGE_DISTANCE = 0.5 # play with this to encourage bigger jumps
 
-MAP_X_MIN = -40
-MAP_X_MAX = 40
-MAP_Y_MIN = -40
-MAP_Y_MAX = 40
-MAP_Z_MIN = 0
-MAP_Z_MAX = 15
+MAP_X_MIN = -6.5
+MAP_X_MAX = 6.5
+MAP_Y_MIN = -6.5
+MAP_Y_MAX = 6.5
+MAP_Z_MIN = 1
+MAP_Z_MAX = 6
 
-MAX_VELOCITY = 1.0
-MAX_TURN_DURATION = 7.0
+MAX_VELOCITY = 3.0
+MAX_TURN_DURATION = 2.0
 
-DOWNSAMPLING_FACTOR = 2.0
+DOWNSAMPLING_FACTOR = 10.0
 
 NUM_SAMPLES_HORIZONTAL = 60
 NUM_SAMPLES_VERTICAL = 20
@@ -449,8 +454,15 @@ def compute_waypoints(
 
 
 if __name__ == "__main__":
-  # TODO: put this stuff in an argparse
-  map_file = Path("simulation/worlds/dust2.sdf")
+  parser = ArgumentParser(description="Compute hiding waypoints for a seeker.")
+  parser.add_argument(
+      "--name",
+      type=str,
+      required=True,
+      help="Name of the map"
+  )
+  map_name = parser.parse_args().name
+  map_file = MAPS_DIR / f"{map_name}.sdf"
   logging.info(f"Reading map file: {map_file}")
   output_dir = Path("output")
   headless = False
@@ -495,8 +507,8 @@ if __name__ == "__main__":
   logging.info(f"Computed {len(occluded_points)} occluded points ({len(occluded_points) / len(sample_points) * 100:.2f}% of total)")
   logging.debug(f"Occluded points: {occluded_points}")
 
-  np.save(output_dir / "visible_points.npy", visible_points)
-  np.save(output_dir / "occluded_points.npy", occluded_points)
+  np.save(output_dir / f"{map_name}_visible.npy", visible_points)
+  np.save(output_dir / f"{map_name}_occluded.npy", occluded_points)
 
   # Sample randomly occluded poiints with downsampling factor
   num_occluded_points = int(len(occluded_points) / DOWNSAMPLING_FACTOR)
@@ -510,7 +522,7 @@ if __name__ == "__main__":
 
   save_map_ply(
       obstacle_points=inside_points,
-      file_path=output_dir / "obstacle_points.ply",
+      file_path=output_dir / f"{map_name}_obstacle.ply",
   )
 
   
@@ -537,7 +549,7 @@ if __name__ == "__main__":
 
   logging.info(f"Computed {len(waypoints)} waypoints")
   logging.debug(f"Waypoints: {waypoints}")
-  np.save(output_dir / "waypoints.npy", waypoints)
+  np.save(output_dir / f"{map_name}_waypoints.npy", waypoints)
 
   if not headless:
       visualize_map(

@@ -7,6 +7,7 @@ Panels:
         - /Global Options1
         - /Status1
         - /DronePose1/Status1
+        - /Occluded1
         - /Waypoints1/Topic1
         - /Waypoints1/Namespaces1
       Splitter Ratio: 0.5
@@ -64,7 +65,7 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /mavros/local_position/pose
       Value: true
-    - Alpha: 0.5
+    - Alpha: 0.20000000298023224
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
         Max Value: 10
@@ -86,7 +87,7 @@ Visualization Manager:
       Position Transformer: XYZ
       Selectable: false
       Size (Pixels): 3
-      Size (m): 1
+      Size (m): 0.20000000298023224
       Style: Spheres
       Topic:
         Depth: 5
@@ -165,25 +166,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 101.25887298583984
+      Distance: 35.73902893066406
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 11.421698570251465
-        Y: -4.497490406036377
-        Z: -4.798852920532227
+        X: -0.2597452998161316
+        Y: -4.074045658111572
+        Z: -5.960160255432129
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.0947967767715454
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 4.635414123535156
+      Yaw: 3.975403070449829
     Saved: ~
 Window Geometry:
   Displays:

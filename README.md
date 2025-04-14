@@ -106,6 +106,12 @@ make px4_sitl gazebo-classic
 
 
 ### Game
+First generate the hiding spots and paths using (replace name with relevant sdf file in `./simulation/worlds`):
+```
+python3 /src/ros_ws/src/drone_packages/flight_club/src/hiding/hiding.py --name arena
+```
+Then run the stack:
+
 To start the game, run the following:
 ```
 source /opt/ros/foxy/setup.bash
