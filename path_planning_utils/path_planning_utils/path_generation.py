@@ -33,7 +33,7 @@ def initial_guess(points,  position_noise=0, velocity_noise=0, acceleration_nois
     
     max_vel_mag = np.linalg.norm(max_vel)
     velocity_df = compute_velocities_in_cone_3d(points, 0, max_vel_mag, vertex_angle_deg=vertex_angle_deg, magnitude_step=magnitude_step, angle_step=angle_step, loop=False, prediction_horizon=len(points))
-    print(f"velocity_df: {velocity_df}")
+    # print(f"velocity_df: {velocity_df}")
     # compute velocity df
     results, dict_res, shortest = compute_all_trajectories(points, velocity_df, max_acc, min_acc, max_vel, min_vel, prediction_horizon=None)
     tf = compute_tf(shortest, dict_res)

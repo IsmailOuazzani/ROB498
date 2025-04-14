@@ -44,7 +44,7 @@ class GameLoopNode(Node):
     self.map_name = self.get_parameter("map_name").get_parameter_value().string_value
     # Set up logging
     self._logger = logging.getLogger("game_loop_logger")
-    self._logger.setLevel(logging.DEBUG)
+    self._logger.setLevel(logging.INFO)
     fh = logging.FileHandler("game_loop.log")
     fh.setLevel(logging.DEBUG)
     # Create console handler

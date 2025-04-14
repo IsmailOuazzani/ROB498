@@ -524,6 +524,8 @@ if __name__ == "__main__":
       obstacle_points=inside_points,
       file_path=output_dir / f"{map_name}_obstacle.ply",
   )
+  np.save(output_dir / f"{map_name}_obstacles.npy", inside_points)
+
 
   
 

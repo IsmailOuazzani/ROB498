@@ -19,12 +19,15 @@ WORKDIR /src
 RUN git clone https://github.com/PX4/PX4-Autopilot.git --recursive &&\
     bash PX4-Autopilot/Tools/setup/ubuntu.sh
 
-# Upgrade CMake
-RUN sudo apt install apt-transport-https ca-certificates gnupg software-properties-common -y && \
-    wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc | sudo apt-key add - &&\
-    sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main' &&\
-    sudo apt update -y &&\
-    sudo apt install cmake -y
+RUN apt-get update && apt-get install -y wget \
+ && wget https://github.com/Kitware/CMake/releases/download/v3.22.6/cmake-3.22.6-linux-x86_64.sh \
+ && chmod +x cmake-3.22.6-linux-x86_64.sh \
+ && ./cmake-3.22.6-linux-x86_64.sh --skip-license --prefix=/usr/local \
+ && ln -sf /usr/local/bin/cmake /usr/bin/cmake \
+ && rm cmake-3.22.6-linux-x86_64.sh
+
+ RUN ln -sf /usr/local/bin/cmake /usr/bin/cmake
+
 
 # Install mavros
 RUN sudo apt-get install -y ros-foxy-gazebo-ros2-control \

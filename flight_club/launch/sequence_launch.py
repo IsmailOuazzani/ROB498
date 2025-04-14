@@ -9,15 +9,21 @@ from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
     # folder where plan trajectory is contained
-    waypoint_output_folder_arg = DeclareLaunchArgument(
-        'waypoint_output_folder',
-        default_value='/src/ros_ws/src/drone_packages/output',  # Default folder for waypoints
+    waypoint_arg = DeclareLaunchArgument(
+        'waypoints',
+        default_value='/src/ros_ws/src/drone_packages/output/arena_waypoints.npy',  # Default folder for waypoints
         description='Folder where waypoints are specified'
     )
     # declare the in collsion points
-    occluded_folder_arg = DeclareLaunchArgument(
-        'occluded_folder',
-        default_value='/src/ros_ws/src/drone_packages/output',  # Default folder for waypoints
+    occluded_arg = DeclareLaunchArgument(
+        'occluded_region',
+        default_value='/src/ros_ws/src/drone_packages/output/arena_occluded.npy',  # Default folder for waypoints
+        description='Folder where out of collision points are specified'
+    )
+
+    obstacle_arg = DeclareLaunchArgument(
+        'obstacles',
+        default_value='/src/ros_ws/src/drone_packages/output/arena_obstacles.npy',  # Default folder for waypoints
         description='Folder where out of collision points are specified'
     )
 
@@ -37,7 +43,7 @@ def generate_launch_description():
     # Declare launch argument for the map name
     map_arg = DeclareLaunchArgument(
         'map_name',
-        default_value='default_map',
+        default_value='arena',
         description='Map name to be used in the game loop node.'
     )
 
@@ -55,7 +61,9 @@ def generate_launch_description():
         executable='sequence_node.py',
         name='sequence_node',
         output='screen',
-        parameters=[{'output_folder': LaunchConfiguration('waypoint_output_folder')}, {'occluded_folder': LaunchConfiguration('occluded_folder')}]
+        parameters=[{'waypoints': LaunchConfiguration('waypoints'),
+                     'occluded_region': LaunchConfiguration('occluded_region'),
+                     'obstacles': LaunchConfiguration('obstacles')}],
         )
 
         # Node to launch exercise2 from flight_club
@@ -66,12 +74,22 @@ def generate_launch_description():
         output='screen'
     )
 
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='screen',
+        arguments=['-d', "/src/ros_ws/src/drone_packages/rviz/game.rviz"]
+    )
+
     return LaunchDescription([
-        waypoint_output_folder_arg,
-        occluded_folder_arg,
+        waypoint_arg,
+        occluded_arg,
+        obstacle_arg,
         map_arg,
         game_loop_node,
-        #mavros_launch,
+        rviz_node,
+        mavros_launch,
         sequence_node, 
-        #executer_node
+        executer_node
     ])

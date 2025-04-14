@@ -88,16 +88,16 @@ def compute_all_trajectories(points, velocity_df, max_acc, min_acc, max_vel, min
         prediction_horizon = len(points)
         
     points_to_inspect = points[0:prediction_horizon]
-    print("points to inspect: ", points_to_inspect)
-    print(prediction_horizon)
+    # print("points to inspect: ", points_to_inspect)
+    # print(prediction_horizon)
     for i in range(prediction_horizon-1):
-        print(i)
+        # print(i)
         start_vel = velocity_df[i]
         end_point = i+1
         end_vel = velocity_df[i + 1]
         trajectories, dict_res = compute_trajectory_set(points_to_inspect, max_acc, min_acc, max_vel, min_vel, start_vel, end_vel, dict_res, i, end_point, prediction_horizon-1)
         results.extend(trajectories)
-    print("dict_res: ", dict_res)
+    # print("dict_res: ", dict_res)
     # if prediction_horizon == len(points):
     #     cost, shortest = shortest_path(dict_res, '0', '0_f')
     # else:

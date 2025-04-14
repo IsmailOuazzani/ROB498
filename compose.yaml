@@ -5,6 +5,7 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
+    image: rob498
     container_name: rob498_container
     environment:
       - DISPLAY=${DISPLAY}
