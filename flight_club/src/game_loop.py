@@ -21,6 +21,8 @@ from visualization_msgs.msg import Marker, MarkerArray
 import numpy as np
 from pynput import keyboard
 from playsound import playsound
+from scipy.spatial import KDTree
+
 
 from flight_club.msg import GameInfo
 
@@ -33,23 +35,25 @@ NODE_NAMESPACE = "flight_club"
 
 GOAL_TOLERANCE = 0.5  # meters
 
+VISIBLE_TOLERANCE = 0.5
+
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "output"
 WORLDS_DIR = Path(__file__).resolve().parent.parent.parent / "simulation/worlds"
 
 
 class GameLoopNode(Node):
-  def __init__(self, goal_x: float):
+  def __init__(self):
     super().__init__(NODE_NAME, namespace=NODE_NAMESPACE)
     self.declare_parameter("map_name", "arena")
     self.map_name = self.get_parameter("map_name").get_parameter_value().string_value
     # Set up logging
     self._logger = logging.getLogger("game_loop_logger")
-    self._logger.setLevel(logging.INFO)
+    self._logger.setLevel(logging.DEBUG)
     fh = logging.FileHandler("game_loop.log")
     fh.setLevel(logging.DEBUG)
     # Create console handler
     ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
+    ch.setLevel(logging.INFO)
     formatter = logging.Formatter("[%(asctime)s] [%(levelname)s]: %(message)s")
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
@@ -60,7 +64,6 @@ class GameLoopNode(Node):
 
     # Initialize parameters
     self.game_state = GameInfo.GAME_STATE_STOP
-    self.goal_x = goal_x
 
     world_file = WORLDS_DIR / f"{self.map_name}.sdf"
     self.world = parse_sdf_map(world_file)
@@ -68,8 +71,11 @@ class GameLoopNode(Node):
     self.occluded_map = np.load(occluded_map_file).reshape(-1, 3).astype(np.float32)
     visible_map_file = DATA_DIR / f"{self.map_name}_visible.npy"
     self.visible_map = np.load(visible_map_file).reshape(-1, 3).astype(np.float32)
+    self.visible_tree = KDTree(self.visible_map)
     waypoints_file = DATA_DIR / f"{self.map_name}_waypoints.npy"
     self.waypoints = np.load(waypoints_file).reshape(-1, 3).astype(np.float32)
+
+    self.goal_x = self.world.seeker_pose[0]
 
 
     # States we rotate through when pressing space (in the exact order):
@@ -203,7 +209,6 @@ class GameLoopNode(Node):
     marker_array.markers.append(seeker_marker)
     # Publish the marker array
     self.world_pub.publish(marker_array)
-    self._logger.debug("Published world marker array.")
 
   def publish_visible(self): # TODO: move the formatting part of this function to another file to declutter
     # Create PointCloud message
@@ -226,7 +231,6 @@ class GameLoopNode(Node):
           visible_msg.points.append(p)
     # Publish the message
     self.visible_map_pub.publish(visible_msg)
-    self._logger.debug("Published visible point cloud.")
 
   def publish_waypoints(self):    
     # Create a LINE_STRIP marker
@@ -250,7 +254,6 @@ class GameLoopNode(Node):
         waypoints_marker.points.append(p)
     # Publish the marker
     self.waypoints_pub.publish(waypoints_marker)
-    self._logger.debug("Published waypoints marker.")
 
 
   def start_game_callback(self, request, response):
@@ -287,12 +290,12 @@ class GameLoopNode(Node):
     self.last_pose_time = self.get_clock().now()
     x,y,z = msg.pose.position.x, msg.pose.position.y, msg.pose.position.z
 
-    # 1) Check if something (placeholder if True) => if False => LOST
-    #    We'll invert the logic: if not True => become LOST
-    if not True: #TODO: use query_ball_point on visible or obstacle KDTrees to test loss
-        self._logger.error("Game lost condition triggered!")
-        self.set_game_state(GameInfo.GAME_STATE_LOST)
-        return
+    if self.game_state == GameInfo.GAME_STATE_SEEKING:
+        overlapping_visible = self.visible_tree.query_ball_point([x, y, z], VISIBLE_TOLERANCE)
+        if len(overlapping_visible) > 0:
+            self._logger.info("Drone spotted! GAME OVER")
+            self.set_game_state(GameInfo.GAME_STATE_LOST)
+            return
 
     # 2) Another placeholder if False => if True => WON
     if abs(x - self.goal_x) < GOAL_TOLERANCE and self._victory_played == False:
@@ -313,7 +316,7 @@ class GameLoopNode(Node):
   def _keyboard_listener(self):
     """Background thread to listen for keyboard events (using pynput)."""
     def on_press(key):
-        logging.debug(f"Key pressed: {key}")
+        self._logger.debug(f"Key pressed: {key}")
         # Only handle space-bar if the game is in a state that allows cycling
         if key == keyboard.Key.space:
             # If in BLIND_INDEF -> go to BLIND_1
@@ -362,7 +365,6 @@ if __name__ == "__main__":
 
   rclpy.init(args=sys.argv) #TODO: use argparse instead
   node = GameLoopNode(
-    goal_x = -20.0, #TODO: replace with something conditional on the map, with the seeker
   )
 
   try:

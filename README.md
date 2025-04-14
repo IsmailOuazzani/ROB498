@@ -133,6 +133,6 @@ ros2 service call /flight_club/stop_game std_srvs/srv/Empty
 To launch dummy position, you can use:
 ```
 ros2 topic pub -r 10 /mavros/local_position/pose geometry_msgs/msg/PoseStamped "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: 'map'}, 
-  pose: {position: {x: -20.0, y: 2.0, z: 3.0}, 
+  pose: {position: {x: 0.0, y: -1.0, z: 3.0}, 
          orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}"
 ```
