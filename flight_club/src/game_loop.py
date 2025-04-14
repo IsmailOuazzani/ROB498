@@ -40,7 +40,7 @@ WORLDS_DIR = Path(__file__).resolve().parent.parent.parent / "simulation/worlds"
 class GameLoopNode(Node):
   def __init__(self, goal_x: float):
     super().__init__(NODE_NAME, namespace=NODE_NAMESPACE)
-    self.declare_parameter("map_name", "dust2")
+    self.declare_parameter("map_name", "arena")
     self.map_name = self.get_parameter("map_name").get_parameter_value().string_value
     # Set up logging
     self._logger = logging.getLogger("game_loop_logger")
@@ -66,6 +66,8 @@ class GameLoopNode(Node):
     self.world = parse_sdf_map(world_file)
     occluded_map_file = DATA_DIR / f"{self.map_name}_occluded.npy"
     self.occluded_map = np.load(occluded_map_file).reshape(-1, 3).astype(np.float32)
+    visible_map_file = DATA_DIR / f"{self.map_name}_visible.npy"
+    self.visible_map = np.load(visible_map_file).reshape(-1, 3).astype(np.float32)
     waypoints_file = DATA_DIR / f"{self.map_name}_waypoints.npy"
     self.waypoints = np.load(waypoints_file).reshape(-1, 3).astype(np.float32)
 
@@ -94,11 +96,11 @@ class GameLoopNode(Node):
     self.publish_world_timer = self.create_timer(
       1.0, self.publish_world
     )
-    self.occluded_pub = self.create_publisher(
-      PointCloud, "occluded", 10
+    self.visible_map_pub = self.create_publisher(
+      PointCloud, "visible", 10
     )
-    self.publish_occluded_timer = self.create_timer(
-      1.0, self.publish_occluded,
+    self.publish_visible_map_timer = self.create_timer(
+      1.0, self.publish_visible,
     )
     self.waypoints_pub = self.create_publisher(
       Marker, "waypoints", 10
@@ -203,28 +205,28 @@ class GameLoopNode(Node):
     self.world_pub.publish(marker_array)
     self._logger.debug("Published world marker array.")
 
-  def publish_occluded(self): # TODO: move the formatting part of this function to another file to declutter
+  def publish_visible(self): # TODO: move the formatting part of this function to another file to declutter
     # Create PointCloud message
-    occluded_msg = PointCloud()
-    occluded_msg.header = Header()
-    occluded_msg.header.stamp = self.get_clock().now().to_msg()
-    occluded_msg.header.frame_id = "map"  # arbitrary, if needed
-    occluded_msg.points = []
+    visible_msg = PointCloud()
+    visible_msg.header = Header()
+    visible_msg.header.stamp = self.get_clock().now().to_msg()
+    visible_msg.header.frame_id = "map"  # arbitrary, if needed
+    visible_msg.points = []
     # single channel with intensity 1.0
-    occluded_msg.channels = []
-    occluded_msg.channels.append(ChannelFloat32())
-    occluded_msg.channels[0].name = "intensity"
-    occluded_msg.channels[0].values = [1.0] * len(self.occluded_map)
-    # Fill the points
-    for point in self.occluded_map:
-        p = Point32()
-        p.x = float(point[0])
-        p.y = float(point[1])
-        p.z = float(point[2])
-        occluded_msg.points.append(p)
+    visible_msg.channels = []
+    visible_msg.channels.append(ChannelFloat32())
+    visible_msg.channels[0].name = "intensity"
+    if self.game_state == GameInfo.GAME_STATE_SEEKING:
+      visible_msg.channels[0].values = [1.0] * len(self.visible_map)
+      for point in self.visible_map:
+          p = Point32()
+          p.x = float(point[0])
+          p.y = float(point[1])
+          p.z = float(point[2])
+          visible_msg.points.append(p)
     # Publish the message
-    self.occluded_pub.publish(occluded_msg)
-    self._logger.debug("Published occluded point cloud.")
+    self.visible_map_pub.publish(visible_msg)
+    self._logger.debug("Published visible point cloud.")
 
   def publish_waypoints(self):    
     # Create a LINE_STRIP marker
@@ -275,6 +277,8 @@ class GameLoopNode(Node):
         self.cycle_index = 0
 
     self.publish_game_info(force_publish=True)
+    self.publish_world()
+    self.publish_visible()
 
   
   def pose_callback(self, msg: PoseStamped):
@@ -309,6 +313,7 @@ class GameLoopNode(Node):
   def _keyboard_listener(self):
     """Background thread to listen for keyboard events (using pynput)."""
     def on_press(key):
+        logging.debug(f"Key pressed: {key}")
         # Only handle space-bar if the game is in a state that allows cycling
         if key == keyboard.Key.space:
             # If in BLIND_INDEF -> go to BLIND_1

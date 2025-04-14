@@ -68,7 +68,7 @@ Clone this repo in `ros_ws` in the home folder of the drone, at `/home/jetson`
 
 First, build the code:
 ```
-cs ros_ws
+cd /src/ros_ws
 colcon build --symlink-install
 source /src/ros_ws/install/local_setup.bash
 ros2 run mavros install_geographiclib_datasets.sh
@@ -112,7 +112,7 @@ python3 /src/ros_ws/src/drone_packages/flight_club/src/hiding/hiding.py --name a
 ```
 Then run the stack:
 ```
-cs ros_ws
+cd /src/ros_ws
 colcon build --symlink-install
 source /src/ros_ws/install/local_setup.bash
 ros2 launch flight_club game_loop_launch.py
