@@ -28,19 +28,15 @@ def generate_launch_description():
         output='screen'
     )
 
-    vicon_node = Node(
+    realsense_node = Node(
         package='flight_club',
-        executable='vicon.py',
-        name='estimator_node',
-        output='screen',
-        parameters=[{
-            'sim': False,
-            'remap': False
-        }]
+        executable='realsense.py',
+        name='realsense_node',
+        output='screen'
     )
 
     return LaunchDescription([
         mavros_launch,
         executer_node,
-        vicon_node
+        realsense_node
             ])
