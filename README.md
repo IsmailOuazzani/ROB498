@@ -111,13 +111,18 @@ First generate the hiding spots and paths using (replace name with relevant sdf 
 python3 /src/ros_ws/src/drone_packages/flight_club/src/hiding/hiding.py --name arena
 ```
 Then run the stack:
-
+```
+cs ros_ws
+colcon build --symlink-install
+source /src/ros_ws/install/local_setup.bash
+ros2 launch flight_club game_loop_launch.py
+```
 To start the game, run the following:
 ```
 source /opt/ros/foxy/setup.bash
 ros2 service call /flight_club/start_game std_srvs/srv/Empty
 ```
-
+Then use space bar to control state.
 To stop the game, run the following:
 ```
 source /opt/ros/foxy/setup.bash

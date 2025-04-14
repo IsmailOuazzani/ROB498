@@ -18,7 +18,7 @@ def generate_launch_description():
     # Declare launch argument for the map name
     map_arg = DeclareLaunchArgument(
         'map_name',
-        default_value='default_map',
+        default_value='arena',
         description='Map name to be used in the game loop node.'
     )
 
@@ -29,10 +29,19 @@ def generate_launch_description():
         namespace='flight_club',
         output='screen',
         emulate_tty=True,
-        arguments=['--map', LaunchConfiguration('map_name')],
+        parameters=[{'map_name': LaunchConfiguration('map_name')}]
+    )
+
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='screen',
+        arguments=['-d', "/src/ros_ws/src/drone_packages/rviz/game.rviz"]
     )
 
     return LaunchDescription([
         map_arg,
-        game_loop_node
+        game_loop_node,
+        rviz_node,
     ])
