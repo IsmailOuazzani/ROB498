@@ -23,6 +23,7 @@ class RobotState(Enum):
     EXPECT_MISSION = auto()
     MISSION = auto()
     SEEKER_LOOKING = auto()
+    IDLE = auto()
     ABORT = auto()
 
 
@@ -30,7 +31,7 @@ class SequenceTimerNode(Node):
     def __init__(self):
         super().__init__('sequence_timer')
         self.get_logger().info("Press 1 to start the sequence timer (then 2, 3, space in order)")
-        self.get_logger().set_level(rclpy.logging.LoggingSeverity.DEBUG)
+        self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
         # Key sequence we're looking for (after '1')
         self.expected_keys = ['2', '3', 'space']
         self.pressed_keys = []
@@ -47,11 +48,13 @@ class SequenceTimerNode(Node):
         self.current_index = 0
         self.trajectory_time_start = None
         self.game_state = GameInfo.GAME_STATE_STOP
+        self.distance_to_waypoint = []
 
 
         self.start_time = None
         self.timestamps = []  # Elapsed times
         self.predictions = []  # Predictions of when 'space' would be pressed
+        self.target = None
 
         self.seeker_is_looking = False
         self.just_switched = False
@@ -106,16 +109,13 @@ class SequenceTimerNode(Node):
                 self.predictions = []
                 self.get_logger().info("Key 'space' pressed. Seeker is NOT looking.")
                 self.just_switched = True
-                if self.robot_state != RobotState.INIALIZING:
+                if self.robot_state == RobotState.INITIALIZED or self.robot_state == RobotState.IDLE:
                     self.robot_state = RobotState.EXPECT_MISSION
-                else:
-                    self.get_logger().info("Initializing...")
             elif msg.game_state == GameInfo.GAME_STATE_BLIND_2 or msg.game_state == GameInfo.GAME_STATE_BLIND_3:
                 elapsed = (now - self.start_time)
                 self.timestamps.append(elapsed)
                 self.linear_predict()
             elif msg.game_state == GameInfo.GAME_STATE_SEEKING:
-                self.robot_state = RobotState.SEEKER_LOOKING
                 self.get_logger().info("Seeker is looking.")
 
 
@@ -199,66 +199,93 @@ class SequenceTimerNode(Node):
 
     def check_seeker_state(self):
         # This runs at 10 Hz
+        # self.get_logger().debug(f"Current robot state: {self.robot_state}")
         if self.game_state == GameInfo.GAME_STATE_BLIND_INDEF or self.game_state == GameInfo.GAME_STATE_BLIND_2 or self.game_state == GameInfo.GAME_STATE_BLIND_3:
             # as soon as the switch is detected plan route to the next waypoint. When the space bar is in sight start thinking about what to do next
             if self.robot_state == RobotState.INIALIZING:
                 self.get_logger().info("Initializing...")
                 if self.trajectory_time_start is None:
-                    self.end_trajectory_target_time = self.plan_and_publish(self.waypoints.poses[self.current_index])
+                    self.target = self.waypoints.poses[self.current_index]
+                    self.end_trajectory_target_time = self.plan_and_publish(self.target)
                     self.current_index += 1
                     self.just_switched = False
                     self.trajectory_time_start = self.get_clock().now()
                 else:
-                    current_position = np.array([
-                        self.pose.pose.position.x,
-                        self.pose.pose.position.y,
-                        self.pose.pose.position.z
-                    ])
-                    target_position = np.array([
-                        self.waypoints.poses[self.current_index - 1].position.x,
-                        self.waypoints.poses[self.current_index - 1].position.y,
-                        self.waypoints.poses[self.current_index - 1].position.z
-                    ])
-                    distance_to_waypoint = np.linalg.norm(current_position - target_position)
-
-                    if distance_to_waypoint < 0.5:  # Threshold for proximity
-                        self.get_logger().info(f"Reached waypoint {self.current_index - 1}. Distance: {distance_to_waypoint:.3f}")
-                        self.robot_state = RobotState.INITIALIZED
+                    self.check_idle()
             elif self.robot_state == RobotState.EXPECT_MISSION:
-                self.end_trajectory_target_time = self.plan_and_publish(self.waypoints.poses[self.current_index])
+                self.target = self.waypoints.poses[self.current_index]
+                self.end_trajectory_target_time = self.plan_and_publish(self.target)
                 self.current_index += 1
                 self.just_switched = False
                 self.trajectory_time_start = self.get_clock().now()
                 self.robot_state = RobotState.MISSION
             elif len(self.predictions) >0 and self.robot_state == RobotState.MISSION:
+                self.check_idle()
                 avg_prediction = np.mean(self.predictions)
                 current_time = (self.get_clock().now() - self.trajectory_time_start).nanoseconds / 1e9
                 time_to_completion = self.end_trajectory_target_time - current_time
                 self.get_logger().debug(f"Time to completion: {time_to_completion:.3f}s | Avg prediction: {avg_prediction:.3f}s")
 
                 if time_to_completion > avg_prediction:
-                    self.get_logger().info("finding closest not occluded point")
-                    # find the closest not occluded point
-                    if self.occluded is not None:
+                    self.get_logger().info("Finding closest not occluded point")
+                    if self.occluded is not None and self.obstacles is not None:
                         current_position = np.array([
                             self.pose.pose.position.x,
                             self.pose.pose.position.y,
                             self.pose.pose.position.z
                         ])
                         distances = np.linalg.norm(self.occluded - current_position, axis=1)
-                        closest_index = np.argmin(distances)
-                        closest_point = self.occluded[closest_index]
-                        self.get_logger().info(f"Closest not occluded point: {closest_point}")
-                        # Plan and publish trajectory to the closest not occluded point
-                        pose = Pose()
-                        pose.position.x, pose.position.y, pose.position.z = closest_point
-                        _ = self.plan_and_publish(pose)
+                        sorted_indices = np.argsort(distances)
 
-                    self.current_index -= 1
-                    self.robot_state = RobotState.ABORT
+                        for closest_index in sorted_indices:
+                            closest_point = self.occluded[closest_index]
+                            self.get_logger().info(f"Checking point: {closest_point}")
+
+                            # Vector from current position to closest point
+                            line_vector = closest_point - current_position
+                            line_length = np.linalg.norm(line_vector)
+                            line_unit_vector = line_vector / line_length
+
+                            # Calculate distances of obstacles to the line segment
+                            obstacle_positions = np.array(self.obstacles)
+                            point_vectors = obstacle_positions - current_position
+                            projections = np.dot(point_vectors, line_unit_vector)
+                            closest_points_on_line = current_position + np.clip(projections, 0, line_length)[:, None] * line_unit_vector
+                            distances_to_line = np.linalg.norm(obstacle_positions - closest_points_on_line, axis=1)
+
+                            # Check if any obstacle is too close
+                            if np.all(distances_to_line >= 0.5):  # Threshold for safety
+                                self.get_logger().info(f"Selected safe point: {closest_point}")
+                                # Plan and publish trajectory to the closest safe point
+                                pose = Pose()
+                                pose.position.x, pose.position.y, pose.position.z = closest_point
+                                self.target = pose
+                                _ = self.plan_and_publish(self.target)
+                                self.current_index -= 1
+                                self.robot_state = RobotState.ABORT
+                                break
+                        else:
+                            self.get_logger().error("No safe point found!") 
                     
-                # check if drone will get to the next waypoint before the space bar is pressed
+            elif self.robot_state == RobotState.ABORT:
+                self.check_idle()
 
+    def check_idle(self):
+        distance_to_waypoint = np.linalg.norm(
+            np.array([self.pose.pose.position.x, self.pose.pose.position.y, self.pose.pose.position.z]) -
+            np.array([self.target.position.x, self.target.position.y, self.target.position.z])
+        )
+        self.get_logger().debug(f"Distance to waypoint: {distance_to_waypoint:.3f}")
+        self.distance_to_waypoint.append(distance_to_waypoint)
+        if len(self.distance_to_waypoint) > 10:
+            self.distance_to_waypoint.pop(0)
+            if all(d < 0.2 for d in self.distance_to_waypoint):
+                self.get_logger().info(f"Reached target waypoint: {self.target.position.x}, {self.target.position.y}, {self.target.position.z}")
+                self.get_logger().info(f"Distance to waypoint: {distance_to_waypoint:.3f}")
+                if self.robot_state == RobotState.INIALIZING:
+                    self.robot_state = RobotState.INITIALIZED
+                else:
+                    self.robot_state = RobotState.IDLE
 
     def plan_and_publish(self, next_pos):
         waypoints = np.array([self.pose.pose.position.x, self.pose.pose.position.y, self.pose.pose.position.z])

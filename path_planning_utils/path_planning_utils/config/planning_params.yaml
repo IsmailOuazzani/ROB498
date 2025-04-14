@@ -1,19 +1,19 @@
 max_acc:
+  x: 2
+  y: 2
+  z: 2
+min_acc:
+  x: -2
+  y: -2
+  z: -2
+max_vel:
   x: 5
   y: 5
   z: 5
-min_acc:
+min_vel:
   x: -5
   y: -5
   z: -5
-max_vel:
-  x: 3
-  y: 3
-  z: 3
-min_vel:
-  x: -3
-  y: -3
-  z: -3
 magnitude_step: 1
 angle_step: 4
 dt: 0.05
