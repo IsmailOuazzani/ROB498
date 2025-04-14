@@ -292,10 +292,10 @@ class GameLoopNode(Node):
 
     if self.game_state == GameInfo.GAME_STATE_SEEKING:
         overlapping_visible = self.visible_tree.query_ball_point([x, y, z], VISIBLE_TOLERANCE)
-        if len(overlapping_visible) > 0:
-            self._logger.info("Drone spotted! GAME OVER")
-            self.set_game_state(GameInfo.GAME_STATE_LOST)
-            return
+        # if len(overlapping_visible) > 0:
+        #     self._logger.info("Drone spotted! GAME OVER")
+        #     self.set_game_state(GameInfo.GAME_STATE_LOST)
+        #     return
 
     # 2) Another placeholder if False => if True => WON
     if abs(x - self.goal_x) < GOAL_TOLERANCE and self._victory_played == False:
