@@ -26,8 +26,8 @@ GLOBAL_MESH = None
 
 INITIAL_POSITION = np.array([5, 0 , 1])
 SEEKER_OFFSET = np.array([0.0, 0.0, 1.5, 0.0, 0.0, 0.0])
-OBSTACLE_SAFETY_MARGIN = 1.0
-MIN_EDGE_DISTANCE = 0.5 # play with this to encourage bigger jumps
+OBSTACLE_SAFETY_MARGIN = 2.0
+MIN_EDGE_DISTANCE = 0.2 # play with this to encourage bigger jumps
 
 MAP_X_MIN = -6.5
 MAP_X_MAX = 6.5
@@ -380,7 +380,7 @@ def compute_waypoints(
     #########################################
     # PARALLEL RAY INTERSECTIONS
     #########################################
-    num_cores = 4  # or mp.cpu_count() for all
+    num_cores = mp.cpu_count()
     chunk_size = len(edges) // num_cores + 1
 
     # Split into chunks
@@ -465,6 +465,7 @@ if __name__ == "__main__":
   map_file = MAPS_DIR / f"{map_name}.sdf"
   logging.info(f"Reading map file: {map_file}")
   output_dir = Path("output")
+  output_dir.mkdir(parents=True, exist_ok=True)
   headless = False
 
   world = parse_sdf_map(map_file)
