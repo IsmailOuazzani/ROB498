@@ -31,7 +31,7 @@ class SequenceTimerNode(Node):
     def __init__(self):
         super().__init__('sequence_timer')
         self.get_logger().info("Press 1 to start the sequence timer (then 2, 3, space in order)")
-        self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
+        self.get_logger().set_level(rclpy.logging.LoggingSeverity.DEBUG)
         # Key sequence we're looking for (after '1')
         self.expected_keys = ['2', '3', 'space']
         self.pressed_keys = []
@@ -200,31 +200,32 @@ class SequenceTimerNode(Node):
     def check_seeker_state(self):
         # This runs at 10 Hz
         # self.get_logger().debug(f"Current robot state: {self.robot_state}")
-        if self.game_state == GameInfo.GAME_STATE_BLIND_INDEF or self.game_state == GameInfo.GAME_STATE_BLIND_2 or self.game_state == GameInfo.GAME_STATE_BLIND_3:
-            # as soon as the switch is detected plan route to the next waypoint. When the space bar is in sight start thinking about what to do next
-            if self.robot_state == RobotState.INIALIZING:
-                self.get_logger().info("Initializing...")
-                if self.trajectory_time_start is None:
-                    self.target = self.waypoints.poses[self.current_index]
-                    self.end_trajectory_target_time = self.plan_and_publish(self.target)
-                    self.current_index += 1
-                    self.just_switched = False
-                    self.trajectory_time_start = self.get_clock().now()
-                else:
-                    self.check_idle()
-            elif self.robot_state == RobotState.EXPECT_MISSION:
+        # as soon as the switch is detected plan route to the next waypoint. When the space bar is in sight start thinking about what to do next
+        self.get_logger().debug(f"Current robot state: {self.robot_state}")
+        if self.robot_state == RobotState.INIALIZING and self.game_state == GameInfo.GAME_STATE_BLIND_INDEF:
+            self.get_logger().info("Initializing...")
+            if self.trajectory_time_start is None:
                 self.target = self.waypoints.poses[self.current_index]
                 self.end_trajectory_target_time = self.plan_and_publish(self.target)
                 self.current_index += 1
                 self.just_switched = False
                 self.trajectory_time_start = self.get_clock().now()
-                self.robot_state = RobotState.MISSION
-            elif len(self.predictions) >0 and self.robot_state == RobotState.MISSION:
+            else:
                 self.check_idle()
-                avg_prediction = np.mean(self.predictions)
+        elif self.robot_state == RobotState.EXPECT_MISSION:
+            self.target = self.waypoints.poses[self.current_index]
+            self.end_trajectory_target_time = self.plan_and_publish(self.target)
+            self.current_index += 1
+            self.just_switched = False
+            self.trajectory_time_start = self.get_clock().now()
+            self.robot_state = RobotState.MISSION
+        elif self.robot_state == RobotState.MISSION:
+            self.check_idle()
+            avg_prediction = np.mean(self.predictions)
+            if len(self.predictions) > 0:
                 current_time = (self.get_clock().now() - self.trajectory_time_start).nanoseconds / 1e9
                 time_to_completion = self.end_trajectory_target_time - current_time
-                self.get_logger().debug(f"Time to completion: {time_to_completion:.3f}s | Avg prediction: {avg_prediction:.3f}s")
+                self.get_logger().info(f"Time to completion: {time_to_completion:.3f}s | Avg prediction: {avg_prediction:.3f}s")
 
                 if time_to_completion > avg_prediction:
                     self.get_logger().info("Finding closest not occluded point")
@@ -239,7 +240,7 @@ class SequenceTimerNode(Node):
 
                         for closest_index in sorted_indices:
                             closest_point = self.occluded[closest_index]
-                            self.get_logger().info(f"Checking point: {closest_point}")
+                            self.get_logger().debug(f"Checking point: {closest_point}")
 
                             # Vector from current position to closest point
                             line_vector = closest_point - current_position
@@ -266,9 +267,11 @@ class SequenceTimerNode(Node):
                                 break
                         else:
                             self.get_logger().error("No safe point found!") 
-                    
-            elif self.robot_state == RobotState.ABORT:
-                self.check_idle()
+                
+        elif self.robot_state == RobotState.ABORT:
+            self.check_idle()
+        elif self.robot_state == self.robot_state.IDLE and self.game_state == GameInfo.GAME_STATE_BLIND_INDEF:
+            self.robot_state = RobotState.EXPECT_MISSION
 
     def check_idle(self):
         distance_to_waypoint = np.linalg.norm(
@@ -300,7 +303,7 @@ class SequenceTimerNode(Node):
         msg.tf = tf
         msg.data = X0_no_tn
         self.send_waypoints.publish(msg)
-        return tf
+        return tf + 1.5  # Add a buffer time for the trajectory to be executed
 
 def main(args=None):
     rclpy.init(args=args)

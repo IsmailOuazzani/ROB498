@@ -11,19 +11,19 @@ def generate_launch_description():
     # folder where plan trajectory is contained
     waypoint_arg = DeclareLaunchArgument(
         'waypoints',
-        default_value='/src/ros_ws/src/drone_packages/output/arena_waypoints.npy',  # Default folder for waypoints
+        default_value='/src/ros_ws/src/drone_packages/output/baldwin_waypoints.npy',  # Default folder for waypoints
         description='Folder where waypoints are specified'
     )
     # declare the in collsion points
     occluded_arg = DeclareLaunchArgument(
         'occluded_region',
-        default_value='/src/ros_ws/src/drone_packages/output/arena_occluded.npy',  # Default folder for waypoints
+        default_value='/src/ros_ws/src/drone_packages/output/baldwin_occluded.npy',  # Default folder for waypoints
         description='Folder where out of collision points are specified'
     )
 
     obstacle_arg = DeclareLaunchArgument(
         'obstacles',
-        default_value='/src/ros_ws/src/drone_packages/output/arena_obstacles.npy',  # Default folder for waypoints
+        default_value='/src/ros_ws/src/drone_packages/output/baldwin_obstacles.npy',  # Default folder for waypoints
         description='Folder where out of collision points are specified'
     )
 
@@ -43,7 +43,7 @@ def generate_launch_description():
     # Declare launch argument for the map name
     map_arg = DeclareLaunchArgument(
         'map_name',
-        default_value='arena',
+        default_value='baldwin',
         description='Map name to be used in the game loop node.'
     )
 
