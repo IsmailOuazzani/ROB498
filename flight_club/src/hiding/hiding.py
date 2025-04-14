@@ -24,22 +24,33 @@ MAPS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "simulation/wo
 
 GLOBAL_MESH = None
 
-INITIAL_POSITION = np.array([5, 0 , 1])
+
 SEEKER_OFFSET = np.array([0.0, 0.0, 1.5, 0.0, 0.0, 0.0])
-OBSTACLE_SAFETY_MARGIN = 2.0
+OBSTACLE_SAFETY_MARGIN = 0.9
 MIN_EDGE_DISTANCE = 0.2 # play with this to encourage bigger jumps
 
+# Arena
+INITIAL_POSITION = np.array([5, 0 , 1])
 MAP_X_MIN = -6.5
 MAP_X_MAX = 6.5
 MAP_Y_MIN = -6.5
 MAP_Y_MAX = 6.5
 MAP_Z_MIN = 1
+MAP_Z_MAX = 5
+
+# Baldwin
+INITIAL_POSITION = np.array([2.5, 0 , 1])
+MAP_X_MIN = -3.5
+MAP_X_MAX = 3.5
+MAP_Y_MIN = -3.5
+MAP_Y_MAX = 3.5
+MAP_Z_MIN = 1
 MAP_Z_MAX = 6
 
-MAX_VELOCITY = 3.0
-MAX_TURN_DURATION = 2.0
+MAX_VELOCITY = 1.2
+MAX_TURN_DURATION = 3.0
 
-DOWNSAMPLING_FACTOR = 10.0
+DOWNSAMPLING_FACTOR = 20.0
 
 NUM_SAMPLES_HORIZONTAL = 60
 NUM_SAMPLES_VERTICAL = 20
