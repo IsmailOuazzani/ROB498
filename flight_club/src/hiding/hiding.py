@@ -257,7 +257,7 @@ def visualize_map(
           if length < 1e-6:
               continue  # Skip if points are too close.
           # Create a thin cylinder with a small radius.
-          line_cylinder = trimesh.creation.cylinder(radius=0.1, height=length, sections=8)
+          line_cylinder = trimesh.creation.cylinder(radius=0.05, height=length, sections=8)
           # Align the cylinder's z-axis with the direction from p0 to p1.
           z_axis = np.array([0, 0, 1])
           direction_norm = direction / length
