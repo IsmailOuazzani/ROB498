@@ -30,7 +30,7 @@ OBSTACLE_SAFETY_MARGIN = 0.9
 MIN_EDGE_DISTANCE = 0.2 # play with this to encourage bigger jumps
 
 # Arena
-INITIAL_POSITION = np.array([5, 0 , 1])
+INITIAL_POSITION = np.array([3.5, 0 , 1])
 MAP_X_MIN = -6.5
 MAP_X_MAX = 6.5
 MAP_Y_MIN = -6.5
