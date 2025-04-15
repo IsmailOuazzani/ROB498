@@ -108,7 +108,7 @@ make px4_sitl gazebo-classic
 ### Game
 First generate the hiding spots and paths using (replace name with relevant sdf file in `./simulation/worlds`):
 ```
-python3 /src/ros_ws/src/drone_packages/flight_club/src/hiding/hiding.py --name arena
+python3 /src/ros_ws/src/drone_packages/flight_club/src/hiding/hiding.py --name arena3
 ```
 Then run the stack:
 ```
