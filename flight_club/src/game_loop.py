@@ -20,7 +20,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 import numpy as np
 from pynput import keyboard
-from playsound import playsound
+# from playsound import playsound
 from scipy.spatial import KDTree
 
 
@@ -301,14 +301,14 @@ class GameLoopNode(Node):
     if abs(x - self.goal_x) < GOAL_TOLERANCE and self._victory_played == False:
         self._logger.info("Game won condition triggered!")
         self.set_game_state(GameInfo.GAME_STATE_WON)
-        # Play victory sound
-        def play_victory_sound():
-          try:
-              playsound("/src/ros_ws/src/drone_packages/victory.mp3")
-          except Exception as e:
-              self._logger.error(f"Error playing sound: {e}")
+        # # Play victory sound
+        # def play_victory_sound():
+        #   try:
+        #       playsound("/src/ros_ws/src/drone_packages/victory.mp3")
+        #   except Exception as e:
+        #       self._logger.error(f"Error playing sound: {e}")
 
-        threading.Thread(target=play_victory_sound, daemon=True).start()
+        # threading.Thread(target=play_victory_sound, daemon=True).start()
         self._victory_played = True
         return
 
